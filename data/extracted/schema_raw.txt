@@ -1,0 +1,202 @@
+Domain Field Name Mandatory? Description Used for Agent(s) If Missing What Breaks / Degrades Example Value / Format Notes 
+# ═══════════════════════════════════════════════════════════════
+ # SUPPLIER MASTER
+ # ═══════════════════════════════════════════════════════════════
+ Supplier Master supplier_id Mandatory for Agents in Column E Unique identifier for the supplier in the ERP All Agents (1-8) Agent cannot match supplier records; nearly all workflows route to human triage 100234 / SUPP-00098 Primary join key for all supplier-related objects
+ Supplier Master supplier_legal_name Mandatory for Agents in Column E Official registered supplier name in ERP 1-Payment Status; 2-Duplicate Gatekeeper; 3-Statement Reconciler; 4-W9 Router; 5-Bank Change Guardian; 8-Remittance Higher mismatch rate; cannot safely auto-respond to identity-sensitive requests; W-9 cross-validation fails Acme Industrial Supplies LLC Must match W-9 Line 1 for compliance
+ Supplier Master supplier_dba_name Optional Trade name / DBA if different from legal name 4-W9 Router; 2-Duplicate Gatekeeper; 3-Statement Reconciler Cannot match invoices/statements when supplier uses DBA on documents instead of legal name Acme Supplies Common in mid-market suppliers; maps to W-9 Line 2
+ Supplier Master supplier_status Mandatory for Agents in Column E Supplier lifecycle status (Active, Blocked, Hold, Inactive)1-Payment Status; 5-Bank Change Guardian; 6-No-PO Enforcer; 7-Hold Explainer Cannot explain supplier-level blocks/holds; bank change risk scoring incomplete; may process invoices for blocked suppliers Active / Blocked for payment / On Hold Critical for payment gating and fraud routing
+ Supplier Master supplier_category Recommended Supplier classification (Strategic, Preferred, Standard, One-Time) 5-Bank Change Guardian; 6-No-PO Enforcer; 2-Duplicate Gatekeeper Cannot apply differentiated policies; exception-list routing fails for No-PO; cannot prioritize bank change risk Strategic / Preferred / Standard / One-TimeUsed for No-PO exception lists and prioritized handling
+ Supplier Master supplier_payment_terms_default Recommended Default payment terms code from supplier master 1-Payment Status; 7-Hold Explainer; 3-Statement Reconciler Cannot calculate expected payment date or explain payment timing; less accurate ETA guidance NET30 / NET60 / 2/10NET30 May differ from invoice-level terms
+ Supplier Master supplier_payment_method_default Recommended Default payment method (ACH, Check, Wire) 1-Payment Status; 8-Remittance; 5-Bank Change Guardian Cannot predict payment method in status responses; bank change impact assessment incomplete ACH / Check / Wire Relevant to remittance format expectations
+ Supplier Master supplier_remit_to_address Optional Address where payments/remittances are sent 3-Statement Reconciler; 1-Payment Status; 5-Bank Change Guardian Lower identity confidence; more false positives on statement matching; cannot verify remit-to changes 123 Main St, Dallas TX 75201 Used for address verification in bank change workflows
+ Supplier Master supplier_tax_country Optional Tax residence country of the supplier 4-W9 Router Cannot determine correct tax form type (W-9 vs W-8BEN vs W-8BEN-E); more cases routed to humans US / DE / GB Drives W-9 vs W-8 routing logic
+ Supplier Master supplier_tax_classification Optional Tax classification (1099 reportable, Exempt, etc.) 4-W9 Router Less accurate tax compliance messaging; cannot auto-validate tax form type against classification 1099 Reportable / Exempt / Foreign Maps to W-9 Line 3
+ Supplier Master supplier_tin_last4 Optional Last 4 digits of TIN/EIN (masked) 4-W9 Router Cannot cross-validate submitted W-9 TIN against existing records; more manual review **-**6789 Never store or transmit full TIN; used for W-9 validation only
+ Supplier Master supplier_onboarding_date Optional Date supplier was first set up in ERP 5-Bank Change Guardian; 6-No-PO Enforcer; 2-Duplicate Gatekeeper Cannot assess supplier age for risk scoring; new-supplier flags less reliable 2024-03-15 Newer suppliers = higher risk score for bank changes
+ Supplier Master supplier_company_code Recommended Company code / entity the supplier is linked to (multi-entity ERPs) All Agents (1-8) Cannot scope queries to correct legal entity in multi-entity setups; cross-entity data leakage risk 1000 / US01 Critical for SAP/Oracle multi-company deployments
+ Supplier Master supplier_currency Optional Supplier default/preferred transaction currency 1-Payment Status; 3-Statement Reconciler Cross-currency mismatches in reconciliation; incorrect payment amount formatting USD / EUR / GBP May differ from invoice currency
+ # ═══════════════════════════════════════════════════════════════
+ # SUPPLIER CONTACTS
+ # ═══════════════════════════════════════════════════════════════
+ Supplier Contacts supplier_contact_email Mandatory for Agents in Column E Authorized supplier email address(es) for correspondenceAll Agents (1-8) — Security Check Sender identity verification fails; agents cannot auto-respond safely; all requests must route to human triage ap@acme.com, billing@acme.com Primary security control; exact + domain-level matching
+ Supplier Contacts supplier_contact_email_domain Mandatory for Agents in Column E Approved email domain(s) for the supplier 5-Bank Change Guardian; All Agents (security) Domain mismatch detection disabled; typosquatting detection fails; bank change automation unsafe @acme.com / @acme-corp.com Used for BEC fraud detection; do not disclose externally
+ Supplier Contacts supplier_contact_name Recommended Name of authorized contact person(s) 5-Bank Change Guardian; 4-W9 Router; 1-Payment Status Cannot verify named sender against contact list; bank change risk scoring degraded John Smith, AP Manager Match against email From header
+ Supplier Contacts supplier_contact_phone Recommended Phone number on file for AP staff supplier callback verification task 5-Bank Change Guardian Callback verification impossible — bank change requires alternative verification path; all changes become fully manual +1-555-123-4567 CRITICAL: Must be from supplier master NOT from the change request email
+ Supplier Contacts supplier_contact_role Optional Contact's role (AP, Sales, Treasury, Owner) 5-Bank Change Guardian; 4-W9 Router Cannot assess whether requestor is authorized for the type of change requested AP Manager / Treasury / Owner Bank changes should only come from Treasury/Owner roles
+ # ═══════════════════════════════════════════════════════════════
+ # SUPPLIER BANKING
+ # ═══════════════════════════════════════════════════════════════
+ Supplier Banking bank_account_record_id Recommended Unique identifier of bank account record in ERP/supplier master 5-Bank Change Guardian Cannot identify which bank record is being changed; audit trail incomplete BANKREC-77821 Store and process securely; never include full numbers in replies
+ Supplier Banking bank_account_status Recommended Verification/state flag (Verified, Pending Verification, Inactive)5-Bank Change Guardian Cannot enforce verification gating; more human review; may process payments to unverified accounts Verified / Pending Verification Used to gate payment execution
+ Supplier Banking bank_account_last_updated Recommended Timestamp of last update to bank data 5-Bank Change Guardian Cannot detect suspicious repeated changes; fraud pattern detection degraded 2026-01-12T14:22:09Z Flag if updated within last 30 days and new change requested
+ Supplier Banking bank_name Optional Name of the banking institution 5-Bank Change Guardian Cannot cross-reference bank name in change request against existing record Chase / Bank of America Used for change validation
+ Supplier Banking bank_routing_number Optional Bank routing / sort code (ABA, SWIFT, BIC) 5-Bank Change Guardian Cannot validate routing against known bank; reduced change verification 021000021 (ABA) Never include in external communications; internal validation only
+ Supplier Banking bank_account_number_masked Optional Masked bank account number (last 4 digits only) 5-Bank Change Guardian; 8-Remittance Cannot confirm existing account for change verification; supplier cannot confirm which account was paid ****4567 NEVER store or transmit full account number
+ Supplier Banking bank_account_holder_name Recommended Name on the bank account 5-Bank Change Guardian Cannot verify request matches supplier identity; name mismatch detection disabled; more manual review Acme Industrial Supplies LLC Should match supplier_legal_name; flag if different
+ Supplier Banking bank_account_country Optional Country where the bank account is held 5-Bank Change Guardian Cannot detect cross-border bank change (high-risk indicator); OFAC screening gap US / GB / IN Cross-border change = elevated risk
+ # ═══════════════════════════════════════════════════════════════
+ # INVOICE HEADER
+ # ═══════════════════════════════════════════════════════════════
+ Invoice invoice_id Mandatory for Agents in Column E Unique invoice identifier in ERP (internal key) All Agents (1-8) Cannot confirm invoice record; most inquiry workflows failINV-0098123 / 5000001234 Primary join key for invoice-related objects; may differ from supplier invoice #
+ Invoice invoice_number Mandatory for Agents in Column E Supplier-provided invoice reference number 1-Payment Status; 2-Duplicate Gatekeeper; 3-Statement Reconciler; 6-No-PO Enforcer; 7-Hold Explainer; 8-Remittance Cannot match supplier inquiries or statements; duplicate detection fails SI-456789 Supplier-facing identifier; normalize for leading zeros/prefixes
+ Invoice supplier_id Mandatory for Agents in Column E Supplier link on invoice (foreign key to supplier master) All Agents (1-8) Cannot associate invoice to supplier; all invoice workflows break 100234 Join key to supplier master
+ Invoice invoice_date Mandatory for Agents in Column E Date on the invoice document 1-Payment Status; 2-Duplicate Gatekeeper; 3-Statement Reconciler; 6-No-PO Enforcer Duplicate and statement matching accuracy drops; aging calculations wrong 2026-01-05 Used in duplicate fuzzy matching window
+ Invoice invoice_amount Mandatory for Agents in Column E Total invoice gross amount 1-Payment Status; 2-Duplicate Gatekeeper; 3-Statement Reconciler; 6-No-PO Enforcer; 7-Hold Explainer; 8-Remittance Cannot validate matches; cannot explain paid/remaining amounts; duplicate detection weakened 1250.75 Include with currency for display
+ Invoice invoice_currency Mandatory for Agents in Column E Currency code for the invoice 1-Payment Status; 2-Duplicate Gatekeeper; 3-Statement Reconciler; 8-Remittance Cross-currency mismatches; incorrect response formatting; reconciliation errors USD / EUR / GBP Must match payment currency or flag FX conversion
+ Invoice invoice_status Mandatory for Agents in Column E Lifecycle status (Received, In Review, Approved, Posted, Paid, Canceled, Rejected) 1-Payment Status; 2-Duplicate Gatekeeper; 3-Statement Reconciler; 6-No-PO Enforcer; 7-Hold Explainer Cannot answer status inquiries; duplicate blacklist filter fails; statement reconciliation unreliable In Review / Approved / Paid / On Hold Map ERP-specific codes via erp_status_mapping config
+ Invoice invoice_type Recommended Document type (INVOICE, CREDIT_NOTE, DEBIT_NOTE, PREPAYMENT) 2-Duplicate Gatekeeper; 3-Statement Reconciler; 1-Payment Status Cannot distinguish credits from invoices in reconciliation; response type classification fails INVOICE / CREDIT_NOTE / DEBIT_NOTEDrives statement reconciliation logic
+ Invoice invoice_received_date Recommended Date invoice was received/entered into the system 1-Payment Status; 2-Duplicate Gatekeeper Cannot calculate processing SLA; duplicate time-window detection weakened 2026-01-06 May differ from invoice_date
+ Invoice invoice_approved_date Optional Date invoice received final approval 1-Payment Status; 7-Hold Explainer Cannot provide approval timeline info; less accurate payment ETA 2026-01-15 Used to estimate payment date from approval + terms
+ Invoice invoice_hold_flag Mandatory for Agents in Column E Whether invoice is currently on hold (Y/N) 7-Hold Explainer; 1-Payment Status Cannot reliably detect hold condition; hold explanation agent ineffective Y / N Quick filter before looking up hold reasons
+ Invoice invoice_hold_reason_code Mandatory for Agents in Column E Hold reason code(s) (MATCH, PRICE_VAR, APPROVAL, PO_MISSING, etc.) 7-Hold Explainer; 1-Payment Status Cannot explain why invoice is held; must escalate all hold inquiries to human MATCH / PRICE_VAR / APPROVAL / PO_MISMATCH Map to supplier-friendly language per agent SOP
+ Invoice invoice_hold_date Optional Date the hold was placed 7-Hold Explainer Cannot inform supplier how long invoice has been on hold; SLA tracking impossible2026-01-10 Useful for hold aging and SLA reporting
+ Invoice invoice_hold_owner Optional Internal person/team responsible for resolving the hold 7-Hold Explainer Cannot route internal follow-up tasks to correct owner; generic AP routing only jsmith@company.com / AP Team Used for internal task assignment; never expose to supplier
+ Invoice invoice_payment_terms Recommended Payment terms on this specific invoice 1-Payment Status; 7-Hold Explainer Cannot calculate expected payment date accurately; generic company terms used as fallback NET30 / NET60 / 2/10NET30 May override supplier default terms
+ Invoice invoice_due_date Recommended Calculated payment due date 1-Payment Status; 7-Hold Explainer; 3-Statement Reconciler Cannot give expected payment timeline; aging bucket calculation fails; overdue detection broken 2026-02-04 Derived from invoice_date + payment_terms
+ Invoice invoice_submitted_timestamp Optional Timestamp when invoice was submitted to the system 2-Duplicate Gatekeeper Cannot tiebreak priority ordering when duplicate invoice numbers exist 2026-01-05T09:15:30Z Used for chronological ordering of duplicates
+ Invoice invoice_source_channel Optional How invoice was received (Email, Portal, EDI, Fax, Mail)2-Duplicate Gatekeeper Cannot detect cross-channel duplicate submissions (same invoice via email and portal) Email / Portal / EDI / Fax Fingerprint + channel = stronger duplicate signal
+ Invoice invoice_description Optional Free-text description or memo on invoice 6-No-PO Enforcer; 7-Hold Explainer Less context for exception approval routing; hold explanations less specific Office supplies for Q1 2026 Useful for No-PO exception rationale
+ Invoice invoice_entity_id Recommended Company code / legal entity the invoice is assigned to 1-Payment Status; 6-No-PO Enforcer; 3-Statement Reconciler Cannot scope to correct entity in multi-entity ERP; wrong payment status returned 1000 / US01 Critical for multi-entity deployments (SAP/Oracle)
+ Invoice invoice_file_name Optional Original attachment file name 2-Duplicate Gatekeeper Cannot reference original document in duplicate communications INV_456789_acme.pdf Useful for fingerprint-based matching
+ Invoice invoice_image_hashes Optional Perceptive hash values of invoice page images 2-Duplicate Gatekeeper Image/fingerprint-based duplicate detection disabled; only text matching available [hash1, hash2] Compare against previously submitted invoice hashes
+ Invoice invoice_custom_fields Optional Customer-specific custom fields on invoice Varies by customer config Customer-specific automations may not function Schema varies per customer
+ # ═══════════════════════════════════════════════════════════════
+ # INVOICE LINE ITEMS
+ # ═══════════════════════════════════════════════════════════════
+ Invoice Lines invoice_line_number Recommended Line item sequence number 2-Duplicate Gatekeeper; 3-Statement Reconciler; 6-No-PO Enforcer Near-duplicate line-item detection disabled; PO line matching fails; reconciliation at line level impossible 1 / 2 / 3 Required for 3-way match at line level
+ Invoice Lines invoice_line_description Optional Description of goods/services on the line 6-No-PO Enforcer; 7-Hold Explainer; 2-Duplicate Gatekeeper Less context for No-PO exception routing; hold explanations lack specificity Office chairs x 10 Useful for categorization and exception handling
+ Invoice Lines invoice_line_amount Recommended Net amount for the line item 2-Duplicate Gatekeeper; 3-Statement Reconciler; 6-No-PO Enforcer; 7-Hold Explainer Cannot detect near-duplicate line items; PO value match at line level fails; price variance hold unexplainable 250 Compare against PO line price
+ Invoice Lines invoice_line_quantity Optional Quantity on the line item 6-No-PO Enforcer; 7-Hold Explainer 3-way match quantity validation impossible; cannot explain quantity mismatch holds 10 Compare against GR quantity
+ Invoice Lines invoice_line_unit_price Optional Unit price on the line 6-No-PO Enforcer; 7-Hold Explainer Price variance detection fails; cannot explain price-related holds 25 Compare against PO unit price
+ Invoice Lines invoice_line_po_number Recommended PO reference at line level 6-No-PO Enforcer; 2-Duplicate Gatekeeper Cannot validate PO at line level; multi-PO invoices become unprocessable PO-78901 May differ across lines on same invoice
+ Invoice Lines invoice_line_po_line_number Optional PO line number reference 6-No-PO Enforcer; 7-Hold Explainer Cannot do line-level 3-way match; hold reason at line level unexplainable 10 / 20 Used for granular PO matching
+ Invoice Lines invoice_line_gl_account Optional General ledger account code for the line 6-No-PO Enforcer Cannot route exceptions by spend category; less intelligent exception approval 5100-1000 / 6200 Useful for category-based No-PO exception rules
+ Invoice Lines invoice_line_tax_amount Optional Tax amount on the line 3-Statement Reconciler Tax amount discrepancies undetectable in reconciliation 18.75 Relevant for VAT/GST reconciliation
+ Invoice Lines invoice_line_tax_code Optional Tax code applied to the line 3-Statement Reconciler; 4-W9 Router Cannot validate tax treatment; withholding compliance gapsST / VAT20 / EXEMPT May affect 1099 reporting
+ # ═══════════════════════════════════════════════════════════════
+ # INVOICE EXCEPTIONS / HOLDS
+ # ═══════════════════════════════════════════════════════════════
+ Invoice Exceptions exception_code Recommended Header or line-level exception code (PO_NOT_FOUND, PO_LINE_CLOSED, PO_OUT_OF_FUNDS, PRICE_VAR, QTY_MISMATCH) 6-No-PO Enforcer; 7-Hold Explainer; 1-Payment StatusCannot auto-detect PO exceptions; hold explanation agent has no structured data to work with PO_NOT_FOUND / PRICE_VAR / QTY_MISMATCH Mapped from ERP exception codes
+ Invoice Exceptions exception_level Recommended Exception severity (ERROR, WARNING) 6-No-PO Enforcer; 7-Hold Explainer Cannot prioritize holds; treats all exceptions equally; may over-escalate warnings ERROR / WARNING Only ERROR-level exceptions trigger agent actions
+ Invoice Exceptions exception_description Optional Human-readable description of the exception 7-Hold Explainer Must generate hold explanation from code alone; less accurate hold responses PO 78901 line 10 closed; no remaining quantity Supplements exception_code for richer explanations
+ # ═══════════════════════════════════════════════════════════════
+ # PURCHASE ORDER
+ # ═══════════════════════════════════════════════════════════════
+ Purchase Order po_number Mandatory for Agents in Column E Purchase order identifier 6-No-PO Enforcer; 2-Duplicate Gatekeeper; 7-Hold Explainer; 1-Payment Status No-PO policy enforcement completely disabled; PO validation impossible; hold explanations for PO issues fail PO-78901 Primary key for PO matching
+ Purchase Order po_supplier_id Mandatory for Agents in Column E Supplier linked to the PO 6-No-PO Enforcer Cannot validate supplier-PO match; PO supplier mismatch detection fails 100234 Must match invoice supplier_id
+ Purchase Order po_status Mandatory for Agents in Column E PO lifecycle status (Open, Closed, Cancelled, Fully Received) 6-No-PO Enforcer; 7-Hold Explainer Cannot validate PO is still open; may accept invoices against closed/cancelled POs Open / Closed / Cancelled Reject invoices against Closed/Cancelled POs
+ Purchase Order po_total_amount Recommended Total PO value 6-No-PO Enforcer Cannot validate if PO has sufficient remaining value to cover invoice; over-spend undetectable 50000 Compare against cumulative invoiced amount
+ Purchase Order po_remaining_amount Recommended Remaining open value on PO after prior invoices 6-No-PO Enforcer; 7-Hold Explainer Cannot detect PO_OUT_OF_FUNDS condition; over-invoicing against PO undetectable12500 po_total_amount minus cumulative invoiced
+ Purchase Order po_currency Optional PO currency 6-No-PO Enforcer Currency mismatch between PO and invoice undetectableUSD Should match invoice currency
+ Purchase Order po_created_date Optional Date PO was created 6-No-PO Enforcer Cannot assess PO age or detect stale POs 2025-11-01 Expired POs should be flagged
+ Purchase Order po_expiry_date Optional Date PO expires 6-No-PO Enforcer Cannot detect expired POs; may validate invoices against expired POs 2026-06-30 Reject invoices against expired POs
+ Purchase Order po_buyer_name Optional Buyer/requestor who created the PO 6-No-PO Enforcer Cannot route No-PO exceptions to the correct business owner; generic routing only Jane Doe, Procurement Used for exception task assignment
+ Purchase Order po_description Optional PO description or title 6-No-PO Enforcer Less context when routing No-PO exceptions; approvers get less info Office supplies contract Q1 2026 Helpful for exception approval decisions
+ Purchase Order po_line_number Optional PO line item number 6-No-PO Enforcer; 7-Hold Explainer Cannot do line-level PO matching; 3-way match impossible at line level 10 / 20 / 30 Maps to invoice_line_po_line_number
+ Purchase Order po_line_amount Optional PO line value 6-No-PO Enforcer; 7-Hold Explainer Cannot detect line-level over-invoicing; price variance holds unexplainable 500 Compare against invoice line amount
+ Purchase Order po_line_quantity Optional Ordered quantity on PO line 6-No-PO Enforcer; 7-Hold Explainer 3-way match impossible; quantity mismatch holds unexplainable 100 Compare against GR and invoice quantities
+ Purchase Order po_line_unit_price Optional Unit price on PO line 6-No-PO Enforcer; 7-Hold Explainer Price variance detection fails; cannot explain price-related holds 5 Compare against invoice line unit price
+ # ═══════════════════════════════════════════════════════════════
+ # GOODS RECEIPT / RECEIVING
+ # ═══════════════════════════════════════════════════════════════
+ Goods Receipt gr_number Recommended Goods receipt document number 7-Hold Explainer; 6-No-PO Enforcer Cannot explain 3-way match holds; receipt confirmation status unknown GR-55001 Links to PO for 3-way match
+ Goods Receipt gr_po_number Recommended PO number the receipt is against 7-Hold Explainer; 6-No-PO Enforcer Cannot link receipt to PO for 3-way match validation PO-78901 Join key to PO
+ Goods Receipt gr_date Optional Date goods/services were received 7-Hold Explainer Cannot explain receipt timing in hold explanations 2026-01-08 Used to check if receipt exists before invoice
+ Goods Receipt gr_quantity Recommended Quantity received 7-Hold Explainer; 6-No-PO Enforcer Cannot explain quantity mismatch holds; 3-way match quantity validation fails 95 Compare against PO qty and invoice qty
+ Goods Receipt gr_status Optional Receipt status (Posted, Reversed, Partial) 7-Hold Explainer Cannot explain if receipt is confirmed or still pending Posted / Partial / Reversed Reversed receipts should trigger hold review
+ # ═══════════════════════════════════════════════════════════════
+ # PAYMENTS
+ # ═══════════════════════════════════════════════════════════════
+ Payments payment_id Mandatory for Agents in Column E Unique payment record identifier 1-Payment Status; 8-Remittance; 3-Statement Reconciler Cannot confirm payment event; remittance lookup failsPAY-777021 Primary key for payment records
+ Payments payment_status Mandatory for Agents in Column E Payment lifecycle status (Scheduled, Processed, Settled, Cleared, Void, Returned) 1-Payment Status; 8-Remittance Cannot answer payment status; where-is-my-payment failsScheduled / Processed / Cleared / Void Map ERP-specific statuses
+ Payments payment_date Mandatory for Agents in Column E Date payment was issued/cleared 1-Payment Status; 8-Remittance; 3-Statement Reconciler Cannot provide the key answer suppliers want; reconciliation breaks 2026-01-28 Most requested field in payment inquiries
+ Payments payment_amount Mandatory for Agents in Column E Total payment amount 1-Payment Status; 8-Remittance; 3-Statement Reconciler Cannot confirm payment amount; partial payment explanations fail 5250.75 Must include currency
+ Payments payment_currency Mandatory for Agents in Column E Currency of the payment 1-Payment Status; 8-Remittance; 3-Statement Reconciler Currency mismatch; incorrect formatting in responsesUSD / EUR Used for locale-aware formatting
+ Payments payment_method Recommended Payment method (ACH, Check, Wire, Virtual Card) 1-Payment Status; 8-Remittance Cannot tell supplier how they were paid; supplier cannot trace payment at their bank ACH / Check / Wire / Virtual Card Drives remittance format
+ Payments payment_reference_number Recommended Payment reference (check number, ACH trace, wire ref)1-Payment Status; 8-Remittance Cannot provide traceable reference; supplier cannot confirm receipt at their bank CHK-12345 / ACH-TRC-9876 Most important for supplier to trace at their bank
+ Payments payment_scheduled_date Recommended Scheduled future payment date 1-Payment Status Cannot provide upcoming payment ETA for scheduled-but-not-yet-sent payments2026-02-15 Used when payment_status = Scheduled
+ Payments payment_void_date Optional Date payment was voided (if applicable) 1-Payment Status; 8-Remittance Cannot explain voided payments; supplier gets stale payment confirmation 2026-02-01 Include void reason if available
+ Payments payment_void_reason Optional Reason for payment void 1-Payment Status Cannot explain why payment was voided; supplier left confused Stale check / Bank return / Duplicate Useful for proactive supplier communication
+ Payments payment_batch_id Optional Payment run / batch identifier 8-Remittance Cannot group payments by run for batch remittance requests BATCH-2026-01-28-001 Useful for AP internal tracing
+
+-- 1 of 2 --
+
+Payments payment_bank_account_payer Optional Company bank account used for the payment 8-Remittance; 5-Bank Change Guardian Cannot provide complete remittance details; bank change impact assessment incomplete Company Operating Account ****1234 Mask account number; useful for multi-account companies
+ # ═══════════════════════════════════════════════════════════════
+ # PAYMENT-INVOICE LINKING
+ # ═══════════════════════════════════════════════════════════════
+ Payment Linking payment_invoice_id_fk Mandatory for Agents in Column E Invoice ID linked to the payment 1-Payment Status; 8-Remittance; 3-Statement Reconciler Cannot connect invoice to payment; payment inquiry and remittance workflows completely fail INV-0098123 → PAY-777021 Many-to-many: one payment can cover multiple invoices
+ Payment Linking payment_invoice_applied_amount Recommended Amount of the payment applied to this specific invoice 1-Payment Status; 8-Remittance; 3-Statement Reconciler Cannot explain partial payments; invoice-to-payment breakdown unavailable 1250.75 Critical for multi-invoice payment runs
+ Payment Linking payment_invoice_discount_taken Optional Early payment discount amount deducted 1-Payment Status; 8-Remittance; 3-Statement Reconciler Cannot explain why payment is less than invoice amount (discount vs short-pay) 25 Common source of supplier confusion
+ Payment Linking payment_invoice_withholding_tax Optional Tax withheld from payment 1-Payment Status; 8-Remittance Cannot explain tax withholding deduction from payment amount 125 Relevant for 1099/international suppliers
+ # ═══════════════════════════════════════════════════════════════
+ # CREDIT MEMOS
+ # ═══════════════════════════════════════════════════════════════
+ Credits credit_memo_id Mandatory for Agents in Column E Unique credit memo record identifier 3-Statement Reconciler; 1-Payment Status Cannot find or confirm credits; statement reconciliation for credits fails CM-10221 Join key for credit records
+ Credits credit_memo_supplier_id Mandatory for Agents in Column E Supplier link on the credit memo 3-Statement Reconciler Cannot tie credit to supplier; credit reconciliation breaks 100234 Must match supplier_id
+ Credits credit_memo_number Recommended Supplier-provided credit note reference 3-Statement Reconciler Cannot match credits on supplier statements to ERP records CN-5678 Supplier-facing identifier
+ Credits credit_memo_amount Mandatory for Agents in Column E Credit value 3-Statement Reconciler; 1-Payment Status Cannot confirm credit amount; reconciliation discrepancies unresolvable 250 Include currency
+ Credits credit_memo_date Recommended Date of the credit memo 3-Statement Reconciler Cannot match credit timing on statements; period mismatch detection fails 2026-01-10 Used for statement period matching
+ Credits credit_memo_status Recommended Credit status (Open, Applied, Closed) 3-Statement Reconciler; 1-Payment Status Cannot answer 'is my credit applied?' questions; reconciliation incomplete Open / Applied / Closed Open = available; Applied = used against invoice
+ Credits credit_memo_applied_invoice_ids Recommended Invoice(s) the credit was applied to 3-Statement Reconciler; 1-Payment Status Cannot explain where credit went; more disputes; reconciliation gaps INV-0098123, INV-0098456 May be applied to multiple invoices
+ Credits credit_memo_reason Optional Reason for the credit 3-Statement Reconciler Less context for reconciliation responses; supplier gets generic explanations Return / Pricing adjustment / OverbillingUseful for dispute resolution
+ # ═══════════════════════════════════════════════════════════════
+ # TAX DOCUMENTS
+ # ═══════════════════════════════════════════════════════════════
+ Tax Documents tax_documents_on_file Recommended Tax form types on file (W-9, W-8BEN, W-8BEN-E, 1099, etc.) with dates 4-W9 Router Cannot confirm what is on file; cannot identify missing/expired forms; must escalate all tax inquiries W-9 Received 2025-06-15 / W-8BEN ExpiredUse customer's taxonomy; avoid exposing tax IDs
+ Tax Documents tax_document_expiry_date Optional Expiration date of tax form (W-8 forms expire) 4-W9 Router Cannot proactively flag expired forms; compliance gaps 2027-06-15 W-8 forms expire every 3 years
+ Tax Documents tax_document_status Optional Status of tax document (Valid, Expired, Pending Review, Rejected) 4-W9 Router Cannot route based on document status; less efficient compliance workflow Valid / Expired / Pending Review Drives renewal requests
+ Tax Documents tax_withholding_rate Optional Applicable withholding tax percentage 4-W9 Router; 8-Remittance Cannot explain withholding deductions on payments; supplier confused about short payments 30% / 0% / 24% Backup withholding rate if no valid W-9
+ # ═══════════════════════════════════════════════════════════════
+ # REMITTANCE DOCUMENTS
+ # ═══════════════════════════════════════════════════════════════
+ Remittance remittance_document_id Optional Document ID of generated remittance PDF 8-Remittance Cannot attach remittance to response; must provide reference-only reply REM-2026-01-28-001 Link to document store
+ Remittance remittance_document_url Optional Secure link/URL to remittance document or supplier portal8-Remittance; 1-Payment Status Cannot provide secure link; must email details directly (less secure) https://portal.company.com/remit/... Prefer portal links over email attachments
+ # ═══════════════════════════════════════════════════════════════ 
+# APPROVAL WORKFLOW (INDUSTRY STANDARD ADDITION) 
+# ═══════════════════════════════════════════════════════════════
+ Approval Workflow approval_status Optional Invoice approval status (Pending, Approved, Rejected) 7-Hold Explainer; 1-Payment Status Cannot explain approval-pending holds with specificity; generic response only Pending / Approved / Rejected Supplements invoice_hold_reason_code
+ Approval Workflow approval_pending_with Optional Name/role of person approval is pending with 7-Hold Explainer Cannot tell supplier who is reviewing; cannot create internal follow-up task to correct person J. Smith, Finance Manager Expose internally only; never share approver names with supplier unless policy allows
+ Approval Workflow approval_date Optional Date approval was granted or rejected 7-Hold Explainer; 1-Payment Status Cannot provide approval timeline; payment ETA less accurate 2026-01-20 Used for payment ETA = approval_date + payment_terms
+ Approval Workflow approval_due_date Optional SLA deadline for approval decision 7-Hold Explainer Cannot quote SLA or expected resolution time to supplier 2026-01-25 Drives urgency escalation for overdue approvals
+ # ═══════════════════════════════════════════════════════════════
+ # SUPPLIER COMMUNICATION HISTORY (INDUSTRY STANDARD ADDITION)
+ # ═══════════════════════════════════════════════════════════════
+ Communication supplier_email_history_domains Recommended Historical email domains/addresses used by this supplier5-Bank Change Guardian; All Agents (security) Cannot detect first-time sender for a supplier; new-sender risk flag disabled [@acme.com, @acme-corp.com] Used for BEC risk scoring; flag if sender domain never seen before
+ Communication supplier_last_interaction_date Optional Date of last email/correspondence from this supplier 5-Bank Change Guardian; 2-Duplicate GatekeeperCannot detect dormant supplier suddenly re-engaging (fraud indicator); activity pattern analysis unavailable 2026-01-15 Dormant supplier + bank change = elevated risk
+ # ═══════════════════════════════════════════════════════════════
+ # PAYMENT TERMS / DISCOUNT SCHEDULES (INDUSTRY STANDARD ADDITION)
+ # ═══════════════════════════════════════════════════════════════
+ Payment Terms payment_terms_code Optional Payment terms code 1-Payment Status; 7-Hold Explainer Cannot translate terms code to days/discount scheduleNET30 / 2/10NET30 Lookup table for terms definitions
+ Payment Terms payment_terms_days Optional Number of days for payment 1-Payment Status Cannot calculate payment ETA from invoice date 30 / 60 / 90 Used for due date calculation
+ Payment Terms payment_terms_discount_percent Optional Early payment discount percentage 1-Payment Status; 8-Remittance Cannot explain discount deductions on payments; supplier confused about short-pay 2% Explain in remittance: discount taken
+ Payment Terms payment_terms_discount_days Optional Days within which discount is available 1-Payment Status Cannot explain early-pay discount window 10 Used with 2/10NET30 type terms
+ # ═══════════════════════════════════════════════════════════════
+ # COMPANY / ENTITY MASTER (INDUSTRY STANDARD ADDITION)
+ # ═══════════════════════════════════════════════════════════════
+ Company company_code Recommended Legal entity / company code in ERP All Agents (1-8) — multi-entity Cannot scope queries to correct entity; wrong data returned in multi-entity environments 1000 / US01 / EMEA Required for SAP/Oracle/D365 multi-company
+ Company company_name Optional Company legal name 1-Payment Status; 8-Remittance Cannot personalize responses with correct entity name; generic company name used Acme Corp US, Inc. Professional branding in supplier communications
+ Company company_ap_email Optional AP department email for this entity All Agents (1-8) Cannot provide correct escalation path; supplier contacts wrong AP team ap@acme-us.com Used in response templates for escalation instructions
+ # ═══════════════════════════════════════════════════════════════
+ # SUPPLIER PORTAL CONFIG (INDUSTRY STANDARD ADDITION)
+ # ═══════════════════════════════════════════════════════════════
+ Supplier Portal supplier_portal_url Optional URL to self-service supplier portal 1-Payment Status; 8-Remittance; 5-Bank Change Guardian Cannot direct suppliers to self-service for payment status / remittance / bank changes; higher email volume https://supplier.company.com Reduces email volume when suppliers can self-serve
+ Supplier Portal supplier_portal_enabled Optional Whether supplier has portal access activated 1-Payment Status; 8-Remittance Cannot determine if portal is a viable option for this supplier; may reference unavailable feature Y / N Only reference portal in responses if enabled for the supplier
+ # ═══════════════════════════════════════════════════════════════
+ # DISPUTE / CASE MANAGEMENT (INDUSTRY STANDARD ADDITION)
+ # ═══════════════════════════════════════════════════════════════
+ Disputes dispute_case_id Optional Dispute or case record ID linked to invoice 1-Payment Status; 7-Hold Explainer; 3-Statement Reconciler Cannot detect if invoice is in active dispute; may inadvertently share details about disputed invoices CASE-4412 Flag invoices in dispute for sensitive handling
+ Disputes dispute_status Optional Dispute status (Open, Under Review, Resolved, Escalated)1-Payment Status; 7-Hold Explainer Cannot explain dispute-related holds; cannot flag sensitive invoices properly Open / Under Review / Resolved Dispute/legal hold = route to human per SOP
+ Disputes dispute_reason Optional Reason for dispute 7-Hold Explainer; 3-Statement Reconciler Less context for internal routing and prioritization Price disagreement / Quality issue / Missing goods Useful for categorized reporting
+ # ═══════════════════════════════════════════════════════════════
+ # SANCTIONS / COMPLIANCE SCREENING (INDUSTRY STANDARD ADDITION)
+ # ═══════════════════════════════════════════════════════════════
+ Compliance supplier_sanctions_status Optional Sanctions/OFAC screening status (Clear, Flagged, Blocked)5-Bank Change Guardian; All Agents Cannot detect if supplier is on sanctions list; payments to sanctioned entities possible Clear / Flagged / Blocked Critical for US/EU compliance; block all automation if Flagged/Blocked
+ Compliance supplier_sanctions_last_screened Optional Date of last sanctions screening 5-Bank Change Guardian Cannot assess if screening is current; stale screening = compliance risk 2026-01-01 Re-screen periodically and before bank changes
+ # ═══════════════════════════════════════════════════════════════
+ # ERP-SPECIFIC MAPPING REFERENCES
+ # ═══════════════════════════════════════════════════════════════
+ ERP Config erp_hold_code_mapping Recommended (config) Mapping of ERP hold codes to supplier-friendly descriptions7-Hold Explainer Hold explanations use raw codes instead of friendly language SAP: A=Blocked for payment → "Payment block by AP team" Config per customer; drives hold explanation quality
+
+-- 2 of 2 --

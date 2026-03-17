@@ -1,0 +1,63 @@
+{
+  "sourcePath": "/Users/akale/Downloads/Inbox AP Service Center First Call Deck_V2 (2).pdf",
+  "extractedAt": "2026-02-27T23:52:08.556Z",
+  "pageCount": 19,
+  "agents": [
+    {
+      "key": "tax_form_w9_compliance",
+      "name": "Tax Form (W-9) Compliance",
+      "description": "to payment inquiries and statements. But this",
+      "confidence": "medium",
+      "evidenceLine": "AP communication, from invoices and tax forms"
+    },
+    {
+      "key": "duplicate_invoice_detection",
+      "name": "Duplicate Invoice Detection",
+      "description": "AppZen Inbox is an AI-driven",
+      "confidence": "medium",
+      "evidenceLine": "relationships, and duplicate invoices."
+    },
+    {
+      "key": "payment_status_inquiry",
+      "name": "Payment Status Inquiry",
+      "description": "Description inferred from deck text; manual review recommended.",
+      "confidence": "medium",
+      "evidenceLine": "(payment inquiry, invoice,"
+    },
+    {
+      "key": "vendor_statement_reconciliation",
+      "name": "Vendor Statement Reconciliation",
+      "description": "Reconciling vendor statements means manually verifying payment status for",
+      "confidence": "high",
+      "evidenceLine": "Vendor Statement Reconciliation"
+    },
+    {
+      "key": "bank_account_change_request",
+      "name": "Bank Account Change Request",
+      "description": "Vendor communications requesting payment redirects create wire fraud risk",
+      "confidence": "high",
+      "evidenceLine": "Bank Account Change Request"
+    },
+    {
+      "key": "no_po_no_pay_policy",
+      "name": "No PO No Pay Policy",
+      "description": "Invoices arriving without matching purchase orders create approval",
+      "confidence": "high",
+      "evidenceLine": "No PO No Pay Policy"
+    },
+    {
+      "key": "invoice_hold_reason_explainer",
+      "name": "Invoice Hold Reason Explainer",
+      "description": "Vendors asking “Why is my invoice on hold?” create high-volume follow-up",
+      "confidence": "high",
+      "evidenceLine": "Invoice Hold Reason Explainer"
+    },
+    {
+      "key": "remittance_proof_of_payment",
+      "name": "Remittance & Proof-of-Payment Assistant",
+      "description": "Vendors requesting payment confirmations and remittance advice consume",
+      "confidence": "medium",
+      "evidenceLine": "Remiance & Proof-of-Payment Assistant"
+    }
+  ]
+}

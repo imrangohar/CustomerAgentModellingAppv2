@@ -1,0 +1,583 @@
+AppZen AP Inbox Service
+Center
+February 1, 2026
+First Call Deck Version 2 (Concise Version)
+
+-- 1 of 19 --
+
+Value proposition
+AppZen AP Inbox Service center is an AI-powered system with AI Agents that
+automate supplier communications end-to-end: reading emails, resolving queries, and
+executing actions across the full supplier lifecycle.
+It converts existing AP procedures into autonomous workflows with complete
+governance and auditability. AP Inbox Service Center reduces manual eort across
+inquiries, invoices, and credits, delivering measurable cost savings and rapid ROI.
+
+-- 2 of 19 --
+
+Email remains the primary channel for supplier
+AP communication, from invoices and tax forms
+to payment inquiries and statements. But this
+accessibility comes at a cost.
+The manual burden: AP teams spend hours
+reading and sorting through emails, a process
+that simply doesn’t scale as volumes grow.
+Email reality in AP The challenge:
+Spam, promotions, and duplicate
+submissions flood AP inboxes
+daily.
+Critical emails requiring
+immediate action get buried in
+the noise.
+Missed emails lead to delayed
+payments, strained supplier
+relationships, and duplicate invoices.
+
+-- 3 of 19 --
+
+What Is AP
+Inbox Service
+Center?
+AppZen Inbox is an AI-driven
+AP Service Center powered
+by AI Agents that automate
+supplier interactions
+end-to-end; reading emails,
+resolving queries, and
+executing actions.
+Autonomous supplier email
+operations, audit-ready
+transparency.
+
+-- 4 of 19 --
+
+Automation
+belongs in
+your AP
+Inbox
+Up to Prevent Leakage
+Gain Faster Supplier Query
+Resolution
+1-2
+60 $$$EMAIL PROCESS
+REDUCTION
+TIME
+%
+COST RECOVERY
+MIN
+WEEKLY FTE
+CAPACITY
+RESPONSE TIME
++25hrs
+
+-- 5 of 19 --
+
+Manual vendor email management
+AP teams drowning in manual email triage and endless status inquiries
+Draft responses
+Research from
+ERP
+Vendor emails Finance Team
+Expenses
+W-9
+Invoice Status
+Statement
+AP users manually
+review & action
+AP inboxes Each email read and
+aachment manually
+opened
+Multiple email inboxes
+managed by AP
+Reply, forward,
+reject
+Identify task
+type
+(payment inquiry, invoice,
+W-9)
+RESPOND TO
+VENDOR
+ROUTE TO
+BUSINESS USERS
+SEND BACK TO
+SUPPLIER
+Manually routed
+
+-- 6 of 19 --
+
+AI Agents: Reducing finance work by 70%
+100% emails &
+aachments analysed
+Enabling efficient and autonomous vendor email management
+WORKFLOW TO
+BUSINESS USER
+RESPOND BACK TO
+VENDOR
+SEND BACK
+TO VENDOR
+Multiple email inboxes
+managed by AP
+Base AI
+Models
+Extract and process
+email body and
+aachments
+Vendor emails
+Expenses
+W-9
+Invoice Status
+Statement
+AP inboxes
+Duplicate
+Invoice Payment
+Status Query
+AI Agents
+autonomously
+Identify task
+type
+(payment inquiry, invoice,
+W-9)
+Research from
+ERP
+Draft responses
+Reply, forward,
+reject
+in
+minutes
+70% reduction in AP email
+processing workload
+AP
+Assisted
+AP handles only
+what AI can’t
+resolve
+
+-- 7 of 19 --
+
+Payment Status Inquiry Automation
+Vendors asking “Where is my payment?” flood AP inboxes daily
+Payment Status Inquiry
+What is the challenge?
+AP teams receive thousands of
+vendor payment inquiries every
+month, each requiring them to
+read and understand the email,
+retrieve payment status data
+from the ERP, draft a
+personalized response, and
+track follow-ups.
+From: vendor@acmesupply.com
+To: ap@yourcompany.com
+Subject: Payment Status Inquiry
+Date: October 30, 2025 2:15 PM
+Hi AP Team,
+Can you please provide the status of payment for
+Invoice #INV-45678?
+We submitted this invoice on September 15th and haven’t
+received payment yet.
+Please advise on payment date.
+Thank you,
+Sara Johnson
+Accounts Receivable
+Acme Supply Co.
+Email Classification: Payment
+Status Inquiry
+Invoice Number: INV-45678
+Query Date: 10/30/2025
+Vendor: Acme Supply Co.
+Manual Eort Impact:
+AP Team Manual Eort:
+4,267 emails/annum x 8
+min/email
+569 Hours
+How long would it take
+with an AI Agent?
+eort per inquiry email
+response
+1-2 min
+
+-- 8 of 19 --
+
+Duplicate Invoice Detection
+Same invoice submitted through multiple channels creates double-payment
+risk
+From: vendor@acmesupply.com
+To: ap@yourcompany.com
+Subject: Invoice for October Services
+Date: October 30, 2025 2:15 PM
+Hi AP Team,
+Please find attached Invoice #INV-45678 for October consulting
+services totaling $12,450.00.
+Payment terms: Net 30 Due date: November 14, 2025
+Let me know if you need any additional documentation.
+Thank you,
+Sara Johnson
+Accounts Receivable
+Acme Supply Co.
+Email Classification: Invoice
+Invoice Number: INV-45678
+Status: Duplicate Detected
+Vendor: Acme Supply Co.
+How long would it take
+with an AI Agent?
+Flagged at ingestion
+Instant
+Duplicate invoice
+What is the challenge?
+Without automated detection,
+AP teams manually cross-check
+each invoice against invoice
+history. Duplicates slip through
+dierent email threads, file
+naming variations, or multiple
+submission channels, resulting
+in double payments.
+Catch duplicate
+invoices instantly
+AI Agents spot invoice
+submied through multiple
+channels and flag
+double-payment risks
+automatically.
+
+-- 9 of 19 --
+
+Tax Form (W-9) Compliance
+Each W-9 form needs manual processing, verification, and routing to ensure
+tax compliance
+Retry
+From: vendor@acmesupply.com
+W90098765.pdf
+To: ap@yourcompany.com
+Subject: W-9 Form Attached
+Date: October 30, 2025 2:15 PM
+Hi AP Team,
+Per your request, please find attached our completed W-9 form for
+vendor setup.
+Let me know if you need any additional information.
+Thank you,
+John Martinez
+Finance Manager
+Acme Supply Co.
+Email Classification: Tax Form
+Form Type: W-9
+Action: Forward to
+procurement
+Vendor: Acme Supply Co.
+Manual Eort Impact:
+Tax Form Compliance
+What is the challenge?
+AP teams manually process
+hundreds of W-9 forms
+annually, identifying,
+extracting data,
+acknowledging receipt,
+routing to procurement, and
+tracking compliance.
+AP Team Manual Eort:
+61 W-9 forms/annum x 8
+min/form
+8 Hours
+How long would it take
+with an AI Agent?
+eort per W-9 email
+1-2 min
+
+-- 10 of 19 --
+
+Hi AP Team,
+Please see attached our monthly account statement for October. We
+show several outstanding invoices that are past due.
+Can you please review and advise on payment status?
+Thank you,
+Sara Johnson
+Accounts Receivable
+Acme Supply Co.
+From: vendor@acmesupply.com
+ACME9875.pdf ACME0123.pdf
+To: ap@yourcompany.com
+Subject: October Account Statement
+Date: October 30, 2025 2:15 PM
+Vendor Statement Reconciliation
+Reconciling vendor statements means manually verifying payment status for
+every invoice listed
+Email Classification: Vendor
+Statement
+Vendor: Acme Supply Co.
+Action: Respond with
+complete payment status
+ERP Reconciliation: Check
+status for each invoice
+Manual Eort Impact:
+Vendor Statement
+What is the challenge?
+AP teams manually reconcile
+monthly vendor statements by
+checking each invoice in the
+ERP, identifying discrepancies,
+missing credits and drafting
+payment responses, risking
+overpayments and delays.
+AP Team Manual Eort:
+2,013 statements/annum
+x 8 min/statement
+268 Hours
+eort per Statement
+1-2 min
+How long would it take
+with an AI Agent?
+
+-- 11 of 19 --
+
+Hi AP Team,
+Please update our banking information for all future payments effective
+immediately.
+New Account Details: Bank Name: First National Bank, Account #:
+9847362019, Routing #: 021000021.
+Invoice #12847 for November services totaling $48,500 should be processing
+to this new account.
+Thank you,
+Finance Team
+ABC Manufacturing Co.
+From: vendor@suppliernetwork.com
+ACME9875.pdf ACME0123.pdf
+To: ap@acmecorp.com
+Subject: URGENT: Updated Banking Details
+Date: December 5, 2025 3:47 PM
+Bank Account Change Request
+Vendor communications requesting payment redirects create wire fraud risk
+Email Classification: Bank
+Change Request
+Vendor: ABC Manufacturing
+CO..
+Status: Verification
+Required
+Amount at Risk: $48,500
+Financial Risk Impact:
+Change Request
+What is the challenge?
+Without verification protocols, AP
+teams processing bank account
+change requests risk business
+email compromise (BEC) aacks.
+The process of performing
+due-diligence checks is typically a
+very manual and cumbersome
+process.
+Aempted fraud prevented
+Average BEC fraud loss:
+$125,000
+Savings: Auto-verification protocols +
+vendor master validation = $125,000
+potential loss avoided
+Auto-verification + auto
+-routed to vendor
+management team
+2 minutes
+How long would it take
+with an AI Agent?
+
+-- 12 of 19 --
+
+Hi AP Team,
+Please find attached invoice #TS-9847 for IT consulting services
+rendered in November.
+Invoice Details: Amount: $15,750,00. Payment terms: Net 30 Service
+period: November 1-30, 2025
+Please process at your earliest convenience.
+Thank you,
+Accounts Receivable
+Tech Solutions Inc.
+From: invoices@techsolutionsinc.com
+ACME9875.pdf ACME0123.pdf
+To: ap@acmecorp.com
+Subject: Invoice for IT Services - November
+Date: December 2, 2025 10:23 AM
+No PO No Pay Policy
+Invoices arriving without matching purchase orders create approval
+bottlenecks and payment delays
+Email Classification: Invoice
+Invoice Number: TS-9847
+Status: PO Required -
+Auto-routed
+Amount: $15,750
+Manual Eort Impact:
+No PO Match
+What is the challenge?
+In organisations where No PO
+No Pay policy is enforced, AP
+has to check every invoice for a
+PO number and reject the
+invoice if the supplier has not
+provided a PO number.
+2-4 hours per invoice
+Automated routing + approval
+workflow = 95% faster
+resolution, improved vendor
+relations
+Auto-rejected back to
+supplier
+1 min
+How long would it take
+with an AI Agent?
+
+-- 13 of 19 --
+
+Hi AP Team,
+We submitted invoice #GS-12564 for $22,400 on Dec 20th and it has
+not been paid. We were told it is ‘on hold’ but have received no
+explanation.
+Can you please let us know: what the hold reason is, what we need to
+do to resolve it, and when we can expect the payment?
+This is now 25 days overdue.
+Thank you,
+Global Supply Co.
+From: vendor@globalsupply.com
+To: ap@acmecorp.com
+Subject: Invoice #GS-12564 - Why is this on hold?
+Date: January 14, 2026 9:02 AM
+Invoice Hold Reason Explainer
+Vendors asking “Why is my invoice on hold?” create high-volume follow-up
+emails
+Email Classification: Hold
+Inquiry
+Invoice Number: GS-12564
+Hold Reason: 3-way match -
+Receipt Pending
+Days Outstanding: 25
+Manual Eort Impact:
+Hold Reason Explainer
+What is the challenge?
+AP teams spend hours manually
+researching invoice holds in the
+ERP, decoding internal hold
+codes, and drafting responses
+that explain why an invoice is
+stuck only for the vendor to
+follow up again if the
+explanation is unclear.
+3,200 hold inquiries/annum
+* 10 min/inquiry
+533 Hours
+Eort per hold inquiry
+response
+1 min
+How long would it take
+with an AI Agent?
+
+-- 14 of 19 --
+
+Remiance & Proof-of-Payment Assistant
+Vendors requesting payment confirmations and remittance advice consume
+significant AP team time
+Email Classification:
+Remiance Request
+Hi AP Team,
+We received a payment of $87,250 on January 3rd but cannot reconcile it to our
+open invoices.
+Could you please provide remittance advice showing which invoices were included
+in this payment?
+Invoices potentially include:
+PP-4421 ($31,500), PP-4438 ($28,750), PP-4451 ($27,000)
+ACH/check copy also helpful.
+Thank you,
+Precision Parts
+From: ap@precisionparts.com
+To: ap@acmecorp.com
+Subject: Remittance Advice Needed - Invoices Nov/Dec
+Date: January 8, 2026 11:35 AM
+Vendor: Precision Parts Inc.
+Invoices Referenced:
+PP-4421, PP-4438, PP-4451
+Payment Amount: $87,250
+Manual Eort Impact:
+Hold Reason Explainer
+What is the challenge?
+AP teams manually search ERP
+and payment systems to locate
+payment records, verify which
+invoices were included, check
+remiance policy, and then
+draft and send responses for
+every vendor request.
+2,800 remiance
+requests/annum x 12
+min/request
+560 Hours
+Eort per remiance
+request
+1 min
+How long would it take
+with an AI Agent?
+
+-- 15 of 19 --
+
+Autonomous finance operations
+Reducing Opex, enforcing compliance and increasing savings
+Inbox analytics dashboard
+TOTAL NUMBER OF EMAILS
+LABELED INVOICE
+9,396
+TOTAL NUMBER OF EMAILS
+REJECTED
+AGENT VENDOR EMAIL
+RESPONSES
+TOTAL OF EMAILS LABELED AS
+PAYMENT INQUIRY
+TOTAL NUMBER OF EMAILS
+13,430
+TOTAL NUMBER OF EMAILS LABELED
+STATEMENT PROCESSED
+Invoice emails
+35
+Emails
+364
+Statement documents
+1,433Payment inquiries
+1,402
+Email responses
+Emails
+
+-- 16 of 19 --
+
+AppZen provides the right tools for every task
+Finance worker models Anomaly detection User interaction models
+Feedback models Process insights Document understanding
+Building blocks
+DIY "do-it-yourself” Inbox AP Service Center AI Agent Studio
+Mastermind: The AI automation platform for finance transformation
+ZenLM Models: AI that implements & learns
+
+-- 17 of 19 --
+
+Time to value: by the numbers
+Delivering finance transformation and savings
+Typical With AppZen
+Response time to
+Vendor inquiries
+2-3 business days 1-2 minutes with auto-response
+Time to deploy
+and see results
+6-12 months for traditional solutions Live in minutes
+AP team time spent
+on vendor emails
+40-50% of workday Reduce by 70%
+Cost to scale Add headcount as inquiry volume grows Handle increased volume without adding FTEs
+Headcount reduction Must scale team as inquiry volume grows Avoid 1-2 FTE hires while handling increased
+volume
+Vendor relationship impact Strained relationships from delayed
+responses and manual errors
+Improved satisfaction through consistent, timely
+communication
+Driving compliance
+additional benefits
+No audit trail for vendor communications
+and payment status inquiries
+Complete documentation and tracking of all
+vendor interactions with searchable history
+
+-- 18 of 19 --
+
+Thank You
+
+-- 19 of 19 --
