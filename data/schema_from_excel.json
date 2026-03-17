@@ -1,0 +1,2717 @@
+{
+  "importedAt": "2026-02-28T00:39:05.523Z",
+  "sourcePath": "/Users/akale/Downloads/Inbox AppZen Data Schema.xlsx",
+  "domains": [
+    {
+      "domainKey": "approval_workflow",
+      "label": "Approval Workflow",
+      "fields": [
+        {
+          "key": "approval_status",
+          "label": "approval_status",
+          "requirement": "optional",
+          "description": "Invoice approval status (Pending, Approved, Rejected)",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "invoice_hold_reason_explainer"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot explain approval-pending holds with specificity; generic response only"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Supplements invoice_hold_reason_code"
+          }
+        },
+        {
+          "key": "approval_pending_with",
+          "label": "approval_pending_with",
+          "requirement": "optional",
+          "description": "Name/role of person approval is pending with",
+          "usedByAgents": [
+            "invoice_hold_reason_explainer"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot tell supplier who is reviewing; cannot create internal follow-up task to correct person"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Expose internally only; never share approver names with supplier unless policy allows"
+          }
+        },
+        {
+          "key": "approval_date",
+          "label": "approval_date",
+          "requirement": "optional",
+          "description": "Date approval was granted or rejected",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "invoice_hold_reason_explainer"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot provide approval timeline; payment ETA less accurate"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Used for payment ETA = approval_date + payment_terms"
+          }
+        },
+        {
+          "key": "approval_due_date",
+          "label": "approval_due_date",
+          "requirement": "optional",
+          "description": "SLA deadline for approval decision",
+          "usedByAgents": [
+            "invoice_hold_reason_explainer"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot quote SLA or expected resolution time to supplier"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Drives urgency escalation for overdue approvals"
+          }
+        }
+      ]
+    },
+    {
+      "domainKey": "communication",
+      "label": "Communication",
+      "fields": [
+        {
+          "key": "supplier_email_history_domains",
+          "label": "supplier_email_history_domains",
+          "requirement": "recommended",
+          "description": "Historical email domains/addresses used by this supplier",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "duplicate_invoice_detection",
+            "vendor_statement_reconciliation",
+            "tax_form_w9_compliance",
+            "bank_account_change_request",
+            "no_po_no_pay_policy",
+            "invoice_hold_reason_explainer",
+            "remittance_proof_of_payment"
+          ],
+          "impactIfMissing": {
+            "degraded": [
+              "Cannot detect first-time sender for a supplier; new-sender risk flag disabled"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Used for BEC risk scoring; flag if sender domain never seen before"
+          }
+        },
+        {
+          "key": "supplier_last_interaction_date",
+          "label": "supplier_last_interaction_date",
+          "requirement": "optional",
+          "description": "Date of last email/correspondence from this supplier",
+          "usedByAgents": [
+            "duplicate_invoice_detection",
+            "bank_account_change_request"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot detect dormant supplier suddenly re-engaging (fraud indicator); activity pattern analysis unavailable"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Dormant supplier + bank change = elevated risk"
+          }
+        }
+      ]
+    },
+    {
+      "domainKey": "company",
+      "label": "Company",
+      "fields": [
+        {
+          "key": "company_code",
+          "label": "company_code",
+          "requirement": "recommended",
+          "description": "Legal entity / company code in ERP",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "duplicate_invoice_detection",
+            "vendor_statement_reconciliation",
+            "tax_form_w9_compliance",
+            "bank_account_change_request",
+            "no_po_no_pay_policy",
+            "invoice_hold_reason_explainer",
+            "remittance_proof_of_payment"
+          ],
+          "impactIfMissing": {
+            "degraded": [
+              "Cannot scope queries to correct entity; wrong data returned in multi-entity environments"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Required for SAP/Oracle/D365 multi-company"
+          }
+        },
+        {
+          "key": "company_name",
+          "label": "company_name",
+          "requirement": "optional",
+          "description": "Company legal name",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "remittance_proof_of_payment"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot personalize responses with correct entity name; generic company name used"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Professional branding in supplier communications"
+          }
+        },
+        {
+          "key": "company_ap_email",
+          "label": "company_ap_email",
+          "requirement": "optional",
+          "description": "AP department email for this entity",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "duplicate_invoice_detection",
+            "vendor_statement_reconciliation",
+            "tax_form_w9_compliance",
+            "bank_account_change_request",
+            "no_po_no_pay_policy",
+            "invoice_hold_reason_explainer",
+            "remittance_proof_of_payment"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot provide correct escalation path; supplier contacts wrong AP team"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Used in response templates for escalation instructions"
+          }
+        }
+      ]
+    },
+    {
+      "domainKey": "compliance",
+      "label": "Compliance",
+      "fields": [
+        {
+          "key": "supplier_sanctions_status",
+          "label": "supplier_sanctions_status",
+          "requirement": "optional",
+          "description": "Sanctions/OFAC screening status (Clear, Flagged, Blocked)",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "duplicate_invoice_detection",
+            "vendor_statement_reconciliation",
+            "tax_form_w9_compliance",
+            "bank_account_change_request",
+            "no_po_no_pay_policy",
+            "invoice_hold_reason_explainer",
+            "remittance_proof_of_payment"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot detect if supplier is on sanctions list; payments to sanctioned entities possible"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Critical for US/EU compliance; block all automation if Flagged/Blocked"
+          }
+        },
+        {
+          "key": "supplier_sanctions_last_screened",
+          "label": "supplier_sanctions_last_screened",
+          "requirement": "optional",
+          "description": "Date of last sanctions screening",
+          "usedByAgents": [
+            "bank_account_change_request"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot assess if screening is current; stale screening = compliance risk"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Re-screen periodically and before bank changes"
+          }
+        }
+      ]
+    },
+    {
+      "domainKey": "credits",
+      "label": "Credits",
+      "fields": [
+        {
+          "key": "credit_memo_id",
+          "label": "credit_memo_id",
+          "requirement": "mandatory",
+          "description": "Unique credit memo record identifier",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "vendor_statement_reconciliation"
+          ],
+          "impactIfMissing": {
+            "blocked": [
+              "Cannot find or confirm credits; statement reconciliation for credits fails"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Join key for credit records"
+          }
+        },
+        {
+          "key": "credit_memo_supplier_id",
+          "label": "credit_memo_supplier_id",
+          "requirement": "mandatory",
+          "description": "Supplier link on the credit memo",
+          "usedByAgents": [
+            "vendor_statement_reconciliation"
+          ],
+          "impactIfMissing": {
+            "blocked": [
+              "Cannot tie credit to supplier; credit reconciliation breaks"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Must match supplier_id"
+          }
+        },
+        {
+          "key": "credit_memo_number",
+          "label": "credit_memo_number",
+          "requirement": "recommended",
+          "description": "Supplier-provided credit note reference",
+          "usedByAgents": [
+            "vendor_statement_reconciliation"
+          ],
+          "impactIfMissing": {
+            "degraded": [
+              "Cannot match credits on supplier statements to ERP records"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Supplier-facing identifier"
+          }
+        },
+        {
+          "key": "credit_memo_amount",
+          "label": "credit_memo_amount",
+          "requirement": "mandatory",
+          "description": "Credit value",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "vendor_statement_reconciliation"
+          ],
+          "impactIfMissing": {
+            "blocked": [
+              "Cannot confirm credit amount; reconciliation discrepancies unresolvable"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Include currency"
+          }
+        },
+        {
+          "key": "credit_memo_date",
+          "label": "credit_memo_date",
+          "requirement": "recommended",
+          "description": "Date of the credit memo",
+          "usedByAgents": [
+            "vendor_statement_reconciliation"
+          ],
+          "impactIfMissing": {
+            "degraded": [
+              "Cannot match credit timing on statements; period mismatch detection fails"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Used for statement period matching"
+          }
+        },
+        {
+          "key": "credit_memo_status",
+          "label": "credit_memo_status",
+          "requirement": "recommended",
+          "description": "Credit status (Open, Applied, Closed)",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "vendor_statement_reconciliation"
+          ],
+          "impactIfMissing": {
+            "degraded": [
+              "Cannot answer 'is my credit applied?' questions; reconciliation incomplete"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Open = available; Applied = used against invoice"
+          }
+        },
+        {
+          "key": "credit_memo_applied_invoice_ids",
+          "label": "credit_memo_applied_invoice_ids",
+          "requirement": "recommended",
+          "description": "Invoice(s) the credit was applied to",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "vendor_statement_reconciliation"
+          ],
+          "impactIfMissing": {
+            "degraded": [
+              "Cannot explain where credit went; more disputes; reconciliation gaps"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "May be applied to multiple invoices"
+          }
+        },
+        {
+          "key": "credit_memo_reason",
+          "label": "credit_memo_reason",
+          "requirement": "optional",
+          "description": "Reason for the credit",
+          "usedByAgents": [
+            "vendor_statement_reconciliation"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Less context for reconciliation responses; supplier gets generic explanations"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Useful for dispute resolution"
+          }
+        }
+      ]
+    },
+    {
+      "domainKey": "disputes",
+      "label": "Disputes",
+      "fields": [
+        {
+          "key": "dispute_case_id",
+          "label": "dispute_case_id",
+          "requirement": "optional",
+          "description": "Dispute or case record ID linked to invoice",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "vendor_statement_reconciliation",
+            "invoice_hold_reason_explainer"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot detect if invoice is in active dispute; may inadvertently share details about disputed invoices"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Flag invoices in dispute for sensitive handling"
+          }
+        },
+        {
+          "key": "dispute_status",
+          "label": "dispute_status",
+          "requirement": "optional",
+          "description": "Dispute status (Open, Under Review, Resolved, Escalated)",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "invoice_hold_reason_explainer"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot explain dispute-related holds; cannot flag sensitive invoices properly"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Dispute/legal hold = route to human per SOP"
+          }
+        },
+        {
+          "key": "dispute_reason",
+          "label": "dispute_reason",
+          "requirement": "optional",
+          "description": "Reason for dispute",
+          "usedByAgents": [
+            "vendor_statement_reconciliation",
+            "invoice_hold_reason_explainer"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Less context for internal routing and prioritization"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Useful for categorized reporting"
+          }
+        }
+      ]
+    },
+    {
+      "domainKey": "erp_config",
+      "label": "ERP Config",
+      "fields": [
+        {
+          "key": "erp_hold_code_mapping",
+          "label": "erp_hold_code_mapping",
+          "requirement": "recommended",
+          "description": "Mapping of ERP hold codes to supplier-friendly descriptions",
+          "usedByAgents": [
+            "invoice_hold_reason_explainer"
+          ],
+          "impactIfMissing": {
+            "degraded": [
+              "Hold explanations use raw codes instead of friendly language"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Config per customer; drives hold explanation quality"
+          }
+        }
+      ]
+    },
+    {
+      "domainKey": "goods_receipts",
+      "label": "Goods Receipt",
+      "fields": [
+        {
+          "key": "gr_number",
+          "label": "gr_number",
+          "requirement": "recommended",
+          "description": "Goods receipt document number",
+          "usedByAgents": [
+            "no_po_no_pay_policy",
+            "invoice_hold_reason_explainer"
+          ],
+          "impactIfMissing": {
+            "degraded": [
+              "Cannot explain 3-way match holds; receipt confirmation status unknown"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Links to PO for 3-way match"
+          }
+        },
+        {
+          "key": "gr_po_number",
+          "label": "gr_po_number",
+          "requirement": "recommended",
+          "description": "PO number the receipt is against",
+          "usedByAgents": [
+            "no_po_no_pay_policy",
+            "invoice_hold_reason_explainer"
+          ],
+          "impactIfMissing": {
+            "degraded": [
+              "Cannot link receipt to PO for 3-way match validation"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Join key to PO"
+          }
+        },
+        {
+          "key": "gr_date",
+          "label": "gr_date",
+          "requirement": "optional",
+          "description": "Date goods/services were received",
+          "usedByAgents": [
+            "invoice_hold_reason_explainer"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot explain receipt timing in hold explanations"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Used to check if receipt exists before invoice"
+          }
+        },
+        {
+          "key": "gr_quantity",
+          "label": "gr_quantity",
+          "requirement": "recommended",
+          "description": "Quantity received",
+          "usedByAgents": [
+            "no_po_no_pay_policy",
+            "invoice_hold_reason_explainer"
+          ],
+          "impactIfMissing": {
+            "degraded": [
+              "Cannot explain quantity mismatch holds; 3-way match quantity validation fails"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Compare against PO qty and invoice qty"
+          }
+        },
+        {
+          "key": "gr_status",
+          "label": "gr_status",
+          "requirement": "optional",
+          "description": "Receipt status (Posted, Reversed, Partial)",
+          "usedByAgents": [
+            "invoice_hold_reason_explainer"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot explain if receipt is confirmed or still pending"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Reversed receipts should trigger hold review"
+          }
+        }
+      ]
+    },
+    {
+      "domainKey": "invoice_exceptions",
+      "label": "Invoice Exceptions",
+      "fields": [
+        {
+          "key": "exception_code",
+          "label": "exception_code",
+          "requirement": "recommended",
+          "description": "Header or line-level exception code (PO_NOT_FOUND, PO_LINE_CLOSED, PO_OUT_OF_FUNDS, PRICE_VAR, QTY_MISMATCH)",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "no_po_no_pay_policy",
+            "invoice_hold_reason_explainer"
+          ],
+          "impactIfMissing": {
+            "degraded": [
+              "Cannot auto-detect PO exceptions; hold explanation agent has no structured data to work with"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Mapped from ERP exception codes"
+          }
+        },
+        {
+          "key": "exception_level",
+          "label": "exception_level",
+          "requirement": "recommended",
+          "description": "Exception severity (ERROR, WARNING)",
+          "usedByAgents": [
+            "no_po_no_pay_policy",
+            "invoice_hold_reason_explainer"
+          ],
+          "impactIfMissing": {
+            "degraded": [
+              "Cannot prioritize holds; treats all exceptions equally; may over-escalate warnings"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Only ERROR-level exceptions trigger agent actions"
+          }
+        },
+        {
+          "key": "exception_description",
+          "label": "exception_description",
+          "requirement": "optional",
+          "description": "Human-readable description of the exception",
+          "usedByAgents": [
+            "invoice_hold_reason_explainer"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Must generate hold explanation from code alone; less accurate hold responses"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Supplements exception_code for richer explanations"
+          }
+        }
+      ]
+    },
+    {
+      "domainKey": "invoice_header",
+      "label": "Invoice",
+      "fields": [
+        {
+          "key": "invoice_id",
+          "label": "invoice_id",
+          "requirement": "mandatory",
+          "description": "Unique invoice identifier in ERP (internal key)",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "duplicate_invoice_detection",
+            "vendor_statement_reconciliation",
+            "tax_form_w9_compliance",
+            "bank_account_change_request",
+            "no_po_no_pay_policy",
+            "invoice_hold_reason_explainer",
+            "remittance_proof_of_payment"
+          ],
+          "impactIfMissing": {
+            "blocked": [
+              "Cannot confirm invoice record; most inquiry workflows fail"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Primary join key for invoice-related objects; may differ from supplier invoice #"
+          }
+        },
+        {
+          "key": "invoice_number",
+          "label": "invoice_number",
+          "requirement": "mandatory",
+          "description": "Supplier-provided invoice reference number",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "duplicate_invoice_detection",
+            "vendor_statement_reconciliation",
+            "no_po_no_pay_policy",
+            "invoice_hold_reason_explainer",
+            "remittance_proof_of_payment"
+          ],
+          "impactIfMissing": {
+            "blocked": [
+              "Cannot match supplier inquiries or statements; duplicate detection fails"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Supplier-facing identifier; normalize for leading zeros/prefixes"
+          }
+        },
+        {
+          "key": "supplier_id",
+          "label": "supplier_id",
+          "requirement": "mandatory",
+          "description": "Supplier link on invoice (foreign key to supplier master)",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "duplicate_invoice_detection",
+            "vendor_statement_reconciliation",
+            "tax_form_w9_compliance",
+            "bank_account_change_request",
+            "no_po_no_pay_policy",
+            "invoice_hold_reason_explainer",
+            "remittance_proof_of_payment"
+          ],
+          "impactIfMissing": {
+            "blocked": [
+              "Cannot associate invoice to supplier; all invoice workflows break"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Join key to supplier master"
+          }
+        },
+        {
+          "key": "invoice_date",
+          "label": "invoice_date",
+          "requirement": "mandatory",
+          "description": "Date on the invoice document",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "duplicate_invoice_detection",
+            "vendor_statement_reconciliation",
+            "no_po_no_pay_policy"
+          ],
+          "impactIfMissing": {
+            "blocked": [
+              "Duplicate and statement matching accuracy drops; aging calculations wrong"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Used in duplicate fuzzy matching window"
+          }
+        },
+        {
+          "key": "invoice_amount",
+          "label": "invoice_amount",
+          "requirement": "mandatory",
+          "description": "Total invoice gross amount",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "duplicate_invoice_detection",
+            "vendor_statement_reconciliation",
+            "no_po_no_pay_policy",
+            "invoice_hold_reason_explainer",
+            "remittance_proof_of_payment"
+          ],
+          "impactIfMissing": {
+            "blocked": [
+              "Cannot validate matches; cannot explain paid/remaining amounts; duplicate detection weakened"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Include with currency for display"
+          }
+        },
+        {
+          "key": "invoice_currency",
+          "label": "invoice_currency",
+          "requirement": "mandatory",
+          "description": "Currency code for the invoice",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "duplicate_invoice_detection",
+            "vendor_statement_reconciliation",
+            "remittance_proof_of_payment"
+          ],
+          "impactIfMissing": {
+            "blocked": [
+              "Cross-currency mismatches; incorrect response formatting; reconciliation errors"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Must match payment currency or flag FX conversion"
+          }
+        },
+        {
+          "key": "invoice_status",
+          "label": "invoice_status",
+          "requirement": "mandatory",
+          "description": "Lifecycle status (Received, In Review, Approved, Posted, Paid, Canceled, Rejected)",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "duplicate_invoice_detection",
+            "vendor_statement_reconciliation",
+            "no_po_no_pay_policy",
+            "invoice_hold_reason_explainer"
+          ],
+          "impactIfMissing": {
+            "blocked": [
+              "Cannot answer status inquiries; duplicate blacklist filter fails; statement reconciliation unreliable"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Map ERP-specific codes via erp_status_mapping config"
+          }
+        },
+        {
+          "key": "invoice_type",
+          "label": "invoice_type",
+          "requirement": "recommended",
+          "description": "Document type (INVOICE, CREDIT_NOTE, DEBIT_NOTE, PREPAYMENT)",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "duplicate_invoice_detection",
+            "vendor_statement_reconciliation"
+          ],
+          "impactIfMissing": {
+            "degraded": [
+              "Cannot distinguish credits from invoices in reconciliation; response type classification fails"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Drives statement reconciliation logic"
+          }
+        },
+        {
+          "key": "invoice_received_date",
+          "label": "invoice_received_date",
+          "requirement": "recommended",
+          "description": "Date invoice was received/entered into the system",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "duplicate_invoice_detection"
+          ],
+          "impactIfMissing": {
+            "degraded": [
+              "Cannot calculate processing SLA; duplicate time-window detection weakened"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "May differ from invoice_date"
+          }
+        },
+        {
+          "key": "invoice_approved_date",
+          "label": "invoice_approved_date",
+          "requirement": "optional",
+          "description": "Date invoice received final approval",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "invoice_hold_reason_explainer"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot provide approval timeline info; less accurate payment ETA"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Used to estimate payment date from approval + terms"
+          }
+        },
+        {
+          "key": "invoice_hold_flag",
+          "label": "invoice_hold_flag",
+          "requirement": "mandatory",
+          "description": "Whether invoice is currently on hold (Y/N)",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "invoice_hold_reason_explainer"
+          ],
+          "impactIfMissing": {
+            "blocked": [
+              "Cannot reliably detect hold condition; hold explanation agent ineffective"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Quick filter before looking up hold reasons"
+          }
+        },
+        {
+          "key": "invoice_hold_reason_code",
+          "label": "invoice_hold_reason_code",
+          "requirement": "mandatory",
+          "description": "Hold reason code(s) (MATCH, PRICE_VAR, APPROVAL, PO_MISSING, etc.)",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "invoice_hold_reason_explainer"
+          ],
+          "impactIfMissing": {
+            "blocked": [
+              "Cannot explain why invoice is held; must escalate all hold inquiries to human"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Map to supplier-friendly language per agent SOP"
+          }
+        },
+        {
+          "key": "invoice_hold_date",
+          "label": "invoice_hold_date",
+          "requirement": "optional",
+          "description": "Date the hold was placed",
+          "usedByAgents": [
+            "invoice_hold_reason_explainer"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot inform supplier how long invoice has been on hold; SLA tracking impossible"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Useful for hold aging and SLA reporting"
+          }
+        },
+        {
+          "key": "invoice_hold_owner",
+          "label": "invoice_hold_owner",
+          "requirement": "optional",
+          "description": "Internal person/team responsible for resolving the hold",
+          "usedByAgents": [
+            "invoice_hold_reason_explainer"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot route internal follow-up tasks to correct owner; generic AP routing only"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Used for internal task assignment; never expose to supplier"
+          }
+        },
+        {
+          "key": "invoice_payment_terms",
+          "label": "invoice_payment_terms",
+          "requirement": "recommended",
+          "description": "Payment terms on this specific invoice",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "invoice_hold_reason_explainer"
+          ],
+          "impactIfMissing": {
+            "degraded": [
+              "Cannot calculate expected payment date accurately; generic company terms used as fallback"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "May override supplier default terms"
+          }
+        },
+        {
+          "key": "invoice_due_date",
+          "label": "invoice_due_date",
+          "requirement": "recommended",
+          "description": "Calculated payment due date",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "vendor_statement_reconciliation",
+            "invoice_hold_reason_explainer"
+          ],
+          "impactIfMissing": {
+            "degraded": [
+              "Cannot give expected payment timeline; aging bucket calculation fails; overdue detection broken"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Derived from invoice_date + payment_terms"
+          }
+        },
+        {
+          "key": "invoice_submitted_timestamp",
+          "label": "invoice_submitted_timestamp",
+          "requirement": "optional",
+          "description": "Timestamp when invoice was submitted to the system",
+          "usedByAgents": [
+            "duplicate_invoice_detection"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot tiebreak priority ordering when duplicate invoice numbers exist"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Used for chronological ordering of duplicates"
+          }
+        },
+        {
+          "key": "invoice_source_channel",
+          "label": "invoice_source_channel",
+          "requirement": "optional",
+          "description": "How invoice was received (Email, Portal, EDI, Fax, Mail)",
+          "usedByAgents": [
+            "duplicate_invoice_detection"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot detect cross-channel duplicate submissions (same invoice via email and portal)"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Fingerprint + channel = stronger duplicate signal"
+          }
+        },
+        {
+          "key": "invoice_description",
+          "label": "invoice_description",
+          "requirement": "optional",
+          "description": "Free-text description or memo on invoice",
+          "usedByAgents": [
+            "no_po_no_pay_policy",
+            "invoice_hold_reason_explainer"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Less context for exception approval routing; hold explanations less specific"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Useful for No-PO exception rationale"
+          }
+        },
+        {
+          "key": "invoice_entity_id",
+          "label": "invoice_entity_id",
+          "requirement": "recommended",
+          "description": "Company code / legal entity the invoice is assigned to",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "vendor_statement_reconciliation",
+            "no_po_no_pay_policy"
+          ],
+          "impactIfMissing": {
+            "degraded": [
+              "Cannot scope to correct entity in multi-entity ERP; wrong payment status returned"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Critical for multi-entity deployments (SAP/Oracle)"
+          }
+        },
+        {
+          "key": "invoice_file_name",
+          "label": "invoice_file_name",
+          "requirement": "optional",
+          "description": "Original attachment file name",
+          "usedByAgents": [
+            "duplicate_invoice_detection"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot reference original document in duplicate communications"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Useful for fingerprint-based matching"
+          }
+        },
+        {
+          "key": "invoice_image_hashes",
+          "label": "invoice_image_hashes",
+          "requirement": "optional",
+          "description": "Perceptive hash values of invoice page images",
+          "usedByAgents": [
+            "duplicate_invoice_detection"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Image/fingerprint-based duplicate detection disabled; only text matching available"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Compare against previously submitted invoice hashes"
+          }
+        },
+        {
+          "key": "invoice_custom_fields",
+          "label": "invoice_custom_fields",
+          "requirement": "optional",
+          "description": "Customer-specific custom fields on invoice",
+          "usedByAgents": [],
+          "impactIfMissing": {
+            "restricted": [
+              "Customer-specific automations may not function"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Schema varies per customer"
+          }
+        }
+      ]
+    },
+    {
+      "domainKey": "invoice_lines",
+      "label": "Invoice Lines",
+      "fields": [
+        {
+          "key": "invoice_line_number",
+          "label": "invoice_line_number",
+          "requirement": "recommended",
+          "description": "Line item sequence number",
+          "usedByAgents": [
+            "duplicate_invoice_detection",
+            "vendor_statement_reconciliation",
+            "no_po_no_pay_policy"
+          ],
+          "impactIfMissing": {
+            "degraded": [
+              "Near-duplicate line-item detection disabled; PO line matching fails; reconciliation at line level impossible"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Required for 3-way match at line level"
+          }
+        },
+        {
+          "key": "invoice_line_description",
+          "label": "invoice_line_description",
+          "requirement": "optional",
+          "description": "Description of goods/services on the line",
+          "usedByAgents": [
+            "duplicate_invoice_detection",
+            "no_po_no_pay_policy",
+            "invoice_hold_reason_explainer"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Less context for No-PO exception routing; hold explanations lack specificity"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Useful for categorization and exception handling"
+          }
+        },
+        {
+          "key": "invoice_line_amount",
+          "label": "invoice_line_amount",
+          "requirement": "recommended",
+          "description": "Net amount for the line item",
+          "usedByAgents": [
+            "duplicate_invoice_detection",
+            "vendor_statement_reconciliation",
+            "no_po_no_pay_policy",
+            "invoice_hold_reason_explainer"
+          ],
+          "impactIfMissing": {
+            "degraded": [
+              "Cannot detect near-duplicate line items; PO value match at line level fails; price variance hold unexplainable"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Compare against PO line price"
+          }
+        },
+        {
+          "key": "invoice_line_quantity",
+          "label": "invoice_line_quantity",
+          "requirement": "optional",
+          "description": "Quantity on the line item",
+          "usedByAgents": [
+            "no_po_no_pay_policy",
+            "invoice_hold_reason_explainer"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "3-way match quantity validation impossible; cannot explain quantity mismatch holds"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Compare against GR quantity"
+          }
+        },
+        {
+          "key": "invoice_line_unit_price",
+          "label": "invoice_line_unit_price",
+          "requirement": "optional",
+          "description": "Unit price on the line",
+          "usedByAgents": [
+            "no_po_no_pay_policy",
+            "invoice_hold_reason_explainer"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Price variance detection fails; cannot explain price-related holds"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Compare against PO unit price"
+          }
+        },
+        {
+          "key": "invoice_line_po_number",
+          "label": "invoice_line_po_number",
+          "requirement": "recommended",
+          "description": "PO reference at line level",
+          "usedByAgents": [
+            "duplicate_invoice_detection",
+            "no_po_no_pay_policy"
+          ],
+          "impactIfMissing": {
+            "degraded": [
+              "Cannot validate PO at line level; multi-PO invoices become unprocessable"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "May differ across lines on same invoice"
+          }
+        },
+        {
+          "key": "invoice_line_po_line_number",
+          "label": "invoice_line_po_line_number",
+          "requirement": "optional",
+          "description": "PO line number reference",
+          "usedByAgents": [
+            "no_po_no_pay_policy",
+            "invoice_hold_reason_explainer"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot do line-level 3-way match; hold reason at line level unexplainable"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Used for granular PO matching"
+          }
+        },
+        {
+          "key": "invoice_line_gl_account",
+          "label": "invoice_line_gl_account",
+          "requirement": "optional",
+          "description": "General ledger account code for the line",
+          "usedByAgents": [
+            "no_po_no_pay_policy"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot route exceptions by spend category; less intelligent exception approval"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Useful for category-based No-PO exception rules"
+          }
+        },
+        {
+          "key": "invoice_line_tax_amount",
+          "label": "invoice_line_tax_amount",
+          "requirement": "optional",
+          "description": "Tax amount on the line",
+          "usedByAgents": [
+            "vendor_statement_reconciliation"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Tax amount discrepancies undetectable in reconciliation"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Relevant for VAT/GST reconciliation"
+          }
+        },
+        {
+          "key": "invoice_line_tax_code",
+          "label": "invoice_line_tax_code",
+          "requirement": "optional",
+          "description": "Tax code applied to the line",
+          "usedByAgents": [
+            "vendor_statement_reconciliation",
+            "tax_form_w9_compliance"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot validate tax treatment; withholding compliance gaps"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "May affect 1099 reporting"
+          }
+        }
+      ]
+    },
+    {
+      "domainKey": "payment_linking",
+      "label": "Payment Linking",
+      "fields": [
+        {
+          "key": "payment_invoice_id_fk",
+          "label": "payment_invoice_id_fk",
+          "requirement": "mandatory",
+          "description": "Invoice ID linked to the payment",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "vendor_statement_reconciliation",
+            "remittance_proof_of_payment"
+          ],
+          "impactIfMissing": {
+            "blocked": [
+              "Cannot connect invoice to payment; payment inquiry and remittance workflows completely fail"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Many-to-many: one payment can cover multiple invoices"
+          }
+        },
+        {
+          "key": "payment_invoice_applied_amount",
+          "label": "payment_invoice_applied_amount",
+          "requirement": "recommended",
+          "description": "Amount of the payment applied to this specific invoice",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "vendor_statement_reconciliation",
+            "remittance_proof_of_payment"
+          ],
+          "impactIfMissing": {
+            "degraded": [
+              "Cannot explain partial payments; invoice-to-payment breakdown unavailable"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Critical for multi-invoice payment runs"
+          }
+        },
+        {
+          "key": "payment_invoice_discount_taken",
+          "label": "payment_invoice_discount_taken",
+          "requirement": "optional",
+          "description": "Early payment discount amount deducted",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "vendor_statement_reconciliation",
+            "remittance_proof_of_payment"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot explain why payment is less than invoice amount (discount vs short-pay)"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Common source of supplier confusion"
+          }
+        },
+        {
+          "key": "payment_invoice_withholding_tax",
+          "label": "payment_invoice_withholding_tax",
+          "requirement": "optional",
+          "description": "Tax withheld from payment",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "remittance_proof_of_payment"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot explain tax withholding deduction from payment amount"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Relevant for 1099/international suppliers"
+          }
+        }
+      ]
+    },
+    {
+      "domainKey": "payment_terms",
+      "label": "Payment Terms",
+      "fields": [
+        {
+          "key": "payment_terms_code",
+          "label": "payment_terms_code",
+          "requirement": "optional",
+          "description": "Payment terms code",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "invoice_hold_reason_explainer"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot translate terms code to days/discount schedule"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Lookup table for terms definitions"
+          }
+        },
+        {
+          "key": "payment_terms_days",
+          "label": "payment_terms_days",
+          "requirement": "optional",
+          "description": "Number of days for payment",
+          "usedByAgents": [
+            "payment_status_inquiry"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot calculate payment ETA from invoice date"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Used for due date calculation"
+          }
+        },
+        {
+          "key": "payment_terms_discount_percent",
+          "label": "payment_terms_discount_percent",
+          "requirement": "optional",
+          "description": "Early payment discount percentage",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "remittance_proof_of_payment"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot explain discount deductions on payments; supplier confused about short-pay"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Explain in remittance: discount taken"
+          }
+        },
+        {
+          "key": "payment_terms_discount_days",
+          "label": "payment_terms_discount_days",
+          "requirement": "optional",
+          "description": "Days within which discount is available",
+          "usedByAgents": [
+            "payment_status_inquiry"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot explain early-pay discount window"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Used with 2/10NET30 type terms"
+          }
+        }
+      ]
+    },
+    {
+      "domainKey": "payments",
+      "label": "Payments",
+      "fields": [
+        {
+          "key": "payment_id",
+          "label": "payment_id",
+          "requirement": "mandatory",
+          "description": "Unique payment record identifier",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "vendor_statement_reconciliation",
+            "remittance_proof_of_payment"
+          ],
+          "impactIfMissing": {
+            "blocked": [
+              "Cannot confirm payment event; remittance lookup fails"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Primary key for payment records"
+          }
+        },
+        {
+          "key": "payment_status",
+          "label": "payment_status",
+          "requirement": "mandatory",
+          "description": "Payment lifecycle status (Scheduled, Processed, Settled, Cleared, Void, Returned)",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "remittance_proof_of_payment"
+          ],
+          "impactIfMissing": {
+            "blocked": [
+              "Cannot answer payment status; where-is-my-payment fails"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Map ERP-specific statuses"
+          }
+        },
+        {
+          "key": "payment_date",
+          "label": "payment_date",
+          "requirement": "mandatory",
+          "description": "Date payment was issued/cleared",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "vendor_statement_reconciliation",
+            "remittance_proof_of_payment"
+          ],
+          "impactIfMissing": {
+            "blocked": [
+              "Cannot provide the key answer suppliers want; reconciliation breaks"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Most requested field in payment inquiries"
+          }
+        },
+        {
+          "key": "payment_amount",
+          "label": "payment_amount",
+          "requirement": "mandatory",
+          "description": "Total payment amount",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "vendor_statement_reconciliation",
+            "remittance_proof_of_payment"
+          ],
+          "impactIfMissing": {
+            "blocked": [
+              "Cannot confirm payment amount; partial payment explanations fail"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Must include currency"
+          }
+        },
+        {
+          "key": "payment_currency",
+          "label": "payment_currency",
+          "requirement": "mandatory",
+          "description": "Currency of the payment",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "vendor_statement_reconciliation",
+            "remittance_proof_of_payment"
+          ],
+          "impactIfMissing": {
+            "blocked": [
+              "Currency mismatch; incorrect formatting in responses"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Used for locale-aware formatting"
+          }
+        },
+        {
+          "key": "payment_method",
+          "label": "payment_method",
+          "requirement": "recommended",
+          "description": "Payment method (ACH, Check, Wire, Virtual Card)",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "remittance_proof_of_payment"
+          ],
+          "impactIfMissing": {
+            "degraded": [
+              "Cannot tell supplier how they were paid; supplier cannot trace payment at their bank"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Drives remittance format"
+          }
+        },
+        {
+          "key": "payment_reference_number",
+          "label": "payment_reference_number",
+          "requirement": "recommended",
+          "description": "Payment reference (check number, ACH trace, wire ref)",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "remittance_proof_of_payment"
+          ],
+          "impactIfMissing": {
+            "degraded": [
+              "Cannot provide traceable reference; supplier cannot confirm receipt at their bank"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Most important for supplier to trace at their bank"
+          }
+        },
+        {
+          "key": "payment_scheduled_date",
+          "label": "payment_scheduled_date",
+          "requirement": "recommended",
+          "description": "Scheduled future payment date",
+          "usedByAgents": [
+            "payment_status_inquiry"
+          ],
+          "impactIfMissing": {
+            "degraded": [
+              "Cannot provide upcoming payment ETA for scheduled-but-not-yet-sent payments"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Used when payment_status = Scheduled"
+          }
+        },
+        {
+          "key": "payment_void_date",
+          "label": "payment_void_date",
+          "requirement": "optional",
+          "description": "Date payment was voided (if applicable)",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "remittance_proof_of_payment"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot explain voided payments; supplier gets stale payment confirmation"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Include void reason if available"
+          }
+        },
+        {
+          "key": "payment_void_reason",
+          "label": "payment_void_reason",
+          "requirement": "optional",
+          "description": "Reason for payment void",
+          "usedByAgents": [
+            "payment_status_inquiry"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot explain why payment was voided; supplier left confused"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Useful for proactive supplier communication"
+          }
+        },
+        {
+          "key": "payment_batch_id",
+          "label": "payment_batch_id",
+          "requirement": "optional",
+          "description": "Payment run / batch identifier",
+          "usedByAgents": [
+            "remittance_proof_of_payment"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot group payments by run for batch remittance requests"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Useful for AP internal tracing"
+          }
+        },
+        {
+          "key": "payment_bank_account_payer",
+          "label": "payment_bank_account_payer",
+          "requirement": "optional",
+          "description": "Company bank account used for the payment",
+          "usedByAgents": [
+            "bank_account_change_request",
+            "remittance_proof_of_payment"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot provide complete remittance details; bank change impact assessment incomplete"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Mask account number; useful for multi-account companies"
+          }
+        }
+      ]
+    },
+    {
+      "domainKey": "purchase_orders",
+      "label": "Purchase Order",
+      "fields": [
+        {
+          "key": "po_number",
+          "label": "po_number",
+          "requirement": "mandatory",
+          "description": "Purchase order identifier",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "duplicate_invoice_detection",
+            "no_po_no_pay_policy",
+            "invoice_hold_reason_explainer"
+          ],
+          "impactIfMissing": {
+            "blocked": [
+              "No-PO policy enforcement completely disabled; PO validation impossible; hold explanations for PO issues fail"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Primary key for PO matching"
+          }
+        },
+        {
+          "key": "po_supplier_id",
+          "label": "po_supplier_id",
+          "requirement": "mandatory",
+          "description": "Supplier linked to the PO",
+          "usedByAgents": [
+            "no_po_no_pay_policy"
+          ],
+          "impactIfMissing": {
+            "blocked": [
+              "Cannot validate supplier-PO match; PO supplier mismatch detection fails"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Must match invoice supplier_id"
+          }
+        },
+        {
+          "key": "po_status",
+          "label": "po_status",
+          "requirement": "mandatory",
+          "description": "PO lifecycle status (Open, Closed, Cancelled, Fully Received)",
+          "usedByAgents": [
+            "no_po_no_pay_policy",
+            "invoice_hold_reason_explainer"
+          ],
+          "impactIfMissing": {
+            "blocked": [
+              "Cannot validate PO is still open; may accept invoices against closed/cancelled POs"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Reject invoices against Closed/Cancelled POs"
+          }
+        },
+        {
+          "key": "po_total_amount",
+          "label": "po_total_amount",
+          "requirement": "recommended",
+          "description": "Total PO value",
+          "usedByAgents": [
+            "no_po_no_pay_policy"
+          ],
+          "impactIfMissing": {
+            "degraded": [
+              "Cannot validate if PO has sufficient remaining value to cover invoice; over-spend undetectable"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Compare against cumulative invoiced amount"
+          }
+        },
+        {
+          "key": "po_remaining_amount",
+          "label": "po_remaining_amount",
+          "requirement": "recommended",
+          "description": "Remaining open value on PO after prior invoices",
+          "usedByAgents": [
+            "no_po_no_pay_policy",
+            "invoice_hold_reason_explainer"
+          ],
+          "impactIfMissing": {
+            "degraded": [
+              "Cannot detect PO_OUT_OF_FUNDS condition; over-invoicing against PO undetectable"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "po_total_amount minus cumulative invoiced"
+          }
+        },
+        {
+          "key": "po_currency",
+          "label": "po_currency",
+          "requirement": "optional",
+          "description": "PO currency",
+          "usedByAgents": [
+            "no_po_no_pay_policy"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Currency mismatch between PO and invoice undetectable"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Should match invoice currency"
+          }
+        },
+        {
+          "key": "po_created_date",
+          "label": "po_created_date",
+          "requirement": "optional",
+          "description": "Date PO was created",
+          "usedByAgents": [
+            "no_po_no_pay_policy"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot assess PO age or detect stale POs"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Expired POs should be flagged"
+          }
+        },
+        {
+          "key": "po_expiry_date",
+          "label": "po_expiry_date",
+          "requirement": "optional",
+          "description": "Date PO expires",
+          "usedByAgents": [
+            "no_po_no_pay_policy"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot detect expired POs; may validate invoices against expired POs"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Reject invoices against expired POs"
+          }
+        },
+        {
+          "key": "po_buyer_name",
+          "label": "po_buyer_name",
+          "requirement": "optional",
+          "description": "Buyer/requestor who created the PO",
+          "usedByAgents": [
+            "no_po_no_pay_policy"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot route No-PO exceptions to the correct business owner; generic routing only"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Used for exception task assignment"
+          }
+        },
+        {
+          "key": "po_description",
+          "label": "po_description",
+          "requirement": "optional",
+          "description": "PO description or title",
+          "usedByAgents": [
+            "no_po_no_pay_policy"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Less context when routing No-PO exceptions; approvers get less info"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Helpful for exception approval decisions"
+          }
+        },
+        {
+          "key": "po_line_number",
+          "label": "po_line_number",
+          "requirement": "optional",
+          "description": "PO line item number",
+          "usedByAgents": [
+            "no_po_no_pay_policy",
+            "invoice_hold_reason_explainer"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot do line-level PO matching; 3-way match impossible at line level"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Maps to invoice_line_po_line_number"
+          }
+        },
+        {
+          "key": "po_line_amount",
+          "label": "po_line_amount",
+          "requirement": "optional",
+          "description": "PO line value",
+          "usedByAgents": [
+            "no_po_no_pay_policy",
+            "invoice_hold_reason_explainer"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot detect line-level over-invoicing; price variance holds unexplainable"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Compare against invoice line amount"
+          }
+        },
+        {
+          "key": "po_line_quantity",
+          "label": "po_line_quantity",
+          "requirement": "optional",
+          "description": "Ordered quantity on PO line",
+          "usedByAgents": [
+            "no_po_no_pay_policy",
+            "invoice_hold_reason_explainer"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "3-way match impossible; quantity mismatch holds unexplainable"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Compare against GR and invoice quantities"
+          }
+        },
+        {
+          "key": "po_line_unit_price",
+          "label": "po_line_unit_price",
+          "requirement": "optional",
+          "description": "Unit price on PO line",
+          "usedByAgents": [
+            "no_po_no_pay_policy",
+            "invoice_hold_reason_explainer"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Price variance detection fails; cannot explain price-related holds"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Compare against invoice line unit price"
+          }
+        }
+      ]
+    },
+    {
+      "domainKey": "remittance",
+      "label": "Remittance",
+      "fields": [
+        {
+          "key": "remittance_document_id",
+          "label": "remittance_document_id",
+          "requirement": "optional",
+          "description": "Document ID of generated remittance PDF",
+          "usedByAgents": [
+            "remittance_proof_of_payment"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot attach remittance to response; must provide reference-only reply"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Link to document store"
+          }
+        },
+        {
+          "key": "remittance_document_url",
+          "label": "remittance_document_url",
+          "requirement": "optional",
+          "description": "Secure link/URL to remittance document or supplier portal",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "remittance_proof_of_payment"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot provide secure link; must email details directly (less secure)"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Prefer portal links over email attachments"
+          }
+        }
+      ]
+    },
+    {
+      "domainKey": "supplier_banking",
+      "label": "Supplier Banking",
+      "fields": [
+        {
+          "key": "bank_account_record_id",
+          "label": "bank_account_record_id",
+          "requirement": "recommended",
+          "description": "Unique identifier of bank account record in ERP/supplier master",
+          "usedByAgents": [
+            "bank_account_change_request"
+          ],
+          "impactIfMissing": {
+            "degraded": [
+              "Cannot identify which bank record is being changed; audit trail incomplete"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Store and process securely; never include full numbers in replies"
+          }
+        },
+        {
+          "key": "bank_account_status",
+          "label": "bank_account_status",
+          "requirement": "recommended",
+          "description": "Verification/state flag (Verified, Pending Verification, Inactive)",
+          "usedByAgents": [
+            "bank_account_change_request"
+          ],
+          "impactIfMissing": {
+            "degraded": [
+              "Cannot enforce verification gating; more human review; may process payments to unverified accounts"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Used to gate payment execution"
+          }
+        },
+        {
+          "key": "bank_account_last_updated",
+          "label": "bank_account_last_updated",
+          "requirement": "recommended",
+          "description": "Timestamp of last update to bank data",
+          "usedByAgents": [
+            "bank_account_change_request"
+          ],
+          "impactIfMissing": {
+            "degraded": [
+              "Cannot detect suspicious repeated changes; fraud pattern detection degraded"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Flag if updated within last 30 days and new change requested"
+          }
+        },
+        {
+          "key": "bank_name",
+          "label": "bank_name",
+          "requirement": "optional",
+          "description": "Name of the banking institution",
+          "usedByAgents": [
+            "bank_account_change_request"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot cross-reference bank name in change request against existing record"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Used for change validation"
+          }
+        },
+        {
+          "key": "bank_routing_number",
+          "label": "bank_routing_number",
+          "requirement": "optional",
+          "description": "Bank routing / sort code (ABA, SWIFT, BIC)",
+          "usedByAgents": [
+            "bank_account_change_request"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot validate routing against known bank; reduced change verification"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Never include in external communications; internal validation only"
+          }
+        },
+        {
+          "key": "bank_account_number_masked",
+          "label": "bank_account_number_masked",
+          "requirement": "optional",
+          "description": "Masked bank account number (last 4 digits only)",
+          "usedByAgents": [
+            "bank_account_change_request",
+            "remittance_proof_of_payment"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot confirm existing account for change verification; supplier cannot confirm which account was paid"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "NEVER store or transmit full account number"
+          }
+        },
+        {
+          "key": "bank_account_holder_name",
+          "label": "bank_account_holder_name",
+          "requirement": "recommended",
+          "description": "Name on the bank account",
+          "usedByAgents": [
+            "bank_account_change_request"
+          ],
+          "impactIfMissing": {
+            "degraded": [
+              "Cannot verify request matches supplier identity; name mismatch detection disabled; more manual review"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Should match supplier_legal_name; flag if different"
+          }
+        },
+        {
+          "key": "bank_account_country",
+          "label": "bank_account_country",
+          "requirement": "optional",
+          "description": "Country where the bank account is held",
+          "usedByAgents": [
+            "bank_account_change_request"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot detect cross-border bank change (high-risk indicator); OFAC screening gap"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Cross-border change = elevated risk"
+          }
+        }
+      ]
+    },
+    {
+      "domainKey": "supplier_contacts",
+      "label": "Supplier Contacts",
+      "fields": [
+        {
+          "key": "supplier_contact_email",
+          "label": "supplier_contact_email",
+          "requirement": "mandatory",
+          "description": "Authorized supplier email address(es) for correspondence",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "duplicate_invoice_detection",
+            "vendor_statement_reconciliation",
+            "tax_form_w9_compliance",
+            "bank_account_change_request",
+            "no_po_no_pay_policy",
+            "invoice_hold_reason_explainer",
+            "remittance_proof_of_payment"
+          ],
+          "impactIfMissing": {
+            "blocked": [
+              "Sender identity verification fails; agents cannot auto-respond safely; all requests must route to human triage"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Primary security control; exact + domain-level matching"
+          }
+        },
+        {
+          "key": "supplier_contact_email_domain",
+          "label": "supplier_contact_email_domain",
+          "requirement": "mandatory",
+          "description": "Approved email domain(s) for the supplier",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "duplicate_invoice_detection",
+            "vendor_statement_reconciliation",
+            "tax_form_w9_compliance",
+            "bank_account_change_request",
+            "no_po_no_pay_policy",
+            "invoice_hold_reason_explainer",
+            "remittance_proof_of_payment"
+          ],
+          "impactIfMissing": {
+            "blocked": [
+              "Domain mismatch detection disabled; typosquatting detection fails; bank change automation unsafe"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Used for BEC fraud detection; do not disclose externally"
+          }
+        },
+        {
+          "key": "supplier_contact_name",
+          "label": "supplier_contact_name",
+          "requirement": "recommended",
+          "description": "Name of authorized contact person(s)",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "tax_form_w9_compliance",
+            "bank_account_change_request"
+          ],
+          "impactIfMissing": {
+            "degraded": [
+              "Cannot verify named sender against contact list; bank change risk scoring degraded"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Match against email From header"
+          }
+        },
+        {
+          "key": "supplier_contact_phone",
+          "label": "supplier_contact_phone",
+          "requirement": "recommended",
+          "description": "Phone number on file for AP staff supplier callback verification task",
+          "usedByAgents": [
+            "bank_account_change_request"
+          ],
+          "impactIfMissing": {
+            "degraded": [
+              "Callback verification impossible — bank change requires alternative verification path; all changes become fully manual"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "CRITICAL: Must be from supplier master NOT from the change request email"
+          }
+        },
+        {
+          "key": "supplier_contact_role",
+          "label": "supplier_contact_role",
+          "requirement": "optional",
+          "description": "Contact's role (AP, Sales, Treasury, Owner)",
+          "usedByAgents": [
+            "tax_form_w9_compliance",
+            "bank_account_change_request"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot assess whether requestor is authorized for the type of change requested"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Bank changes should only come from Treasury/Owner roles"
+          }
+        }
+      ]
+    },
+    {
+      "domainKey": "supplier_master",
+      "label": "Supplier Master",
+      "fields": [
+        {
+          "key": "supplier_id",
+          "label": "supplier_id",
+          "requirement": "mandatory",
+          "description": "Unique identifier for the supplier in the ERP",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "duplicate_invoice_detection",
+            "vendor_statement_reconciliation",
+            "tax_form_w9_compliance",
+            "bank_account_change_request",
+            "no_po_no_pay_policy",
+            "invoice_hold_reason_explainer",
+            "remittance_proof_of_payment"
+          ],
+          "impactIfMissing": {
+            "blocked": [
+              "Agent cannot match supplier records; nearly all workflows route to human triage"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Primary join key for all supplier-related objects"
+          }
+        },
+        {
+          "key": "supplier_legal_name",
+          "label": "supplier_legal_name",
+          "requirement": "mandatory",
+          "description": "Official registered supplier name in ERP",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "duplicate_invoice_detection",
+            "vendor_statement_reconciliation",
+            "tax_form_w9_compliance",
+            "bank_account_change_request",
+            "remittance_proof_of_payment"
+          ],
+          "impactIfMissing": {
+            "blocked": [
+              "Higher mismatch rate; cannot safely auto-respond to identity-sensitive requests; W-9 cross-validation fails"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Must match W-9 Line 1 for compliance"
+          }
+        },
+        {
+          "key": "supplier_dba_name",
+          "label": "supplier_dba_name",
+          "requirement": "optional",
+          "description": "Trade name / DBA if different from legal name",
+          "usedByAgents": [
+            "duplicate_invoice_detection",
+            "vendor_statement_reconciliation",
+            "tax_form_w9_compliance"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot match invoices/statements when supplier uses DBA on documents instead of legal name"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Common in mid-market suppliers; maps to W-9 Line 2"
+          }
+        },
+        {
+          "key": "supplier_status",
+          "label": "supplier_status",
+          "requirement": "mandatory",
+          "description": "Supplier lifecycle status (Active, Blocked, Hold, Inactive)",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "bank_account_change_request",
+            "no_po_no_pay_policy",
+            "invoice_hold_reason_explainer"
+          ],
+          "impactIfMissing": {
+            "blocked": [
+              "Cannot explain supplier-level blocks/holds; bank change risk scoring incomplete; may process invoices for blocked suppliers"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Critical for payment gating and fraud routing"
+          }
+        },
+        {
+          "key": "supplier_category",
+          "label": "supplier_category",
+          "requirement": "recommended",
+          "description": "Supplier classification (Strategic, Preferred, Standard, One-Time)",
+          "usedByAgents": [
+            "duplicate_invoice_detection",
+            "bank_account_change_request",
+            "no_po_no_pay_policy"
+          ],
+          "impactIfMissing": {
+            "degraded": [
+              "Cannot apply differentiated policies; exception-list routing fails for No-PO; cannot prioritize bank change risk"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Used for No-PO exception lists and prioritized handling"
+          }
+        },
+        {
+          "key": "supplier_payment_terms_default",
+          "label": "supplier_payment_terms_default",
+          "requirement": "recommended",
+          "description": "Default payment terms code from supplier master",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "vendor_statement_reconciliation",
+            "invoice_hold_reason_explainer"
+          ],
+          "impactIfMissing": {
+            "degraded": [
+              "Cannot calculate expected payment date or explain payment timing; less accurate ETA guidance"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "May differ from invoice-level terms"
+          }
+        },
+        {
+          "key": "supplier_payment_method_default",
+          "label": "supplier_payment_method_default",
+          "requirement": "recommended",
+          "description": "Default payment method (ACH, Check, Wire)",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "bank_account_change_request",
+            "remittance_proof_of_payment"
+          ],
+          "impactIfMissing": {
+            "degraded": [
+              "Cannot predict payment method in status responses; bank change impact assessment incomplete"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Relevant to remittance format expectations"
+          }
+        },
+        {
+          "key": "supplier_remit_to_address",
+          "label": "supplier_remit_to_address",
+          "requirement": "optional",
+          "description": "Address where payments/remittances are sent",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "vendor_statement_reconciliation",
+            "bank_account_change_request"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Lower identity confidence; more false positives on statement matching; cannot verify remit-to changes"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Used for address verification in bank change workflows"
+          }
+        },
+        {
+          "key": "supplier_tax_country",
+          "label": "supplier_tax_country",
+          "requirement": "optional",
+          "description": "Tax residence country of the supplier",
+          "usedByAgents": [
+            "tax_form_w9_compliance"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot determine correct tax form type (W-9 vs W-8BEN vs W-8BEN-E); more cases routed to humans"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Drives W-9 vs W-8 routing logic"
+          }
+        },
+        {
+          "key": "supplier_tax_classification",
+          "label": "supplier_tax_classification",
+          "requirement": "optional",
+          "description": "Tax classification (1099 reportable, Exempt, etc.)",
+          "usedByAgents": [
+            "tax_form_w9_compliance"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Less accurate tax compliance messaging; cannot auto-validate tax form type against classification"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Maps to W-9 Line 3"
+          }
+        },
+        {
+          "key": "supplier_tin_last4",
+          "label": "supplier_tin_last4",
+          "requirement": "optional",
+          "description": "Last 4 digits of TIN/EIN (masked)",
+          "usedByAgents": [
+            "tax_form_w9_compliance"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot cross-validate submitted W-9 TIN against existing records; more manual review"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Never store or transmit full TIN; used for W-9 validation only"
+          }
+        },
+        {
+          "key": "supplier_onboarding_date",
+          "label": "supplier_onboarding_date",
+          "requirement": "optional",
+          "description": "Date supplier was first set up in ERP",
+          "usedByAgents": [
+            "duplicate_invoice_detection",
+            "bank_account_change_request",
+            "no_po_no_pay_policy"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot assess supplier age for risk scoring; new-supplier flags less reliable"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Newer suppliers = higher risk score for bank changes"
+          }
+        },
+        {
+          "key": "supplier_company_code",
+          "label": "supplier_company_code",
+          "requirement": "recommended",
+          "description": "Company code / entity the supplier is linked to (multi-entity ERPs)",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "duplicate_invoice_detection",
+            "vendor_statement_reconciliation",
+            "tax_form_w9_compliance",
+            "bank_account_change_request",
+            "no_po_no_pay_policy",
+            "invoice_hold_reason_explainer",
+            "remittance_proof_of_payment"
+          ],
+          "impactIfMissing": {
+            "degraded": [
+              "Cannot scope queries to correct legal entity in multi-entity setups; cross-entity data leakage risk"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Critical for SAP/Oracle multi-company deployments"
+          }
+        },
+        {
+          "key": "supplier_currency",
+          "label": "supplier_currency",
+          "requirement": "optional",
+          "description": "Supplier default/preferred transaction currency",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "vendor_statement_reconciliation"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cross-currency mismatches in reconciliation; incorrect payment amount formatting"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "May differ from invoice currency"
+          }
+        }
+      ]
+    },
+    {
+      "domainKey": "supplier_portal",
+      "label": "Supplier Portal",
+      "fields": [
+        {
+          "key": "supplier_portal_url",
+          "label": "supplier_portal_url",
+          "requirement": "optional",
+          "description": "URL to self-service supplier portal",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "bank_account_change_request",
+            "remittance_proof_of_payment"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot direct suppliers to self-service for payment status / remittance / bank changes; higher email volume"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Reduces email volume when suppliers can self-serve"
+          }
+        },
+        {
+          "key": "supplier_portal_enabled",
+          "label": "supplier_portal_enabled",
+          "requirement": "optional",
+          "description": "Whether supplier has portal access activated",
+          "usedByAgents": [
+            "payment_status_inquiry",
+            "remittance_proof_of_payment"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot determine if portal is a viable option for this supplier; may reference unavailable feature"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Only reference portal in responses if enabled for the supplier"
+          }
+        }
+      ]
+    },
+    {
+      "domainKey": "tax_documents",
+      "label": "Tax Documents",
+      "fields": [
+        {
+          "key": "tax_documents_on_file",
+          "label": "tax_documents_on_file",
+          "requirement": "recommended",
+          "description": "Tax form types on file (W-9, W-8BEN, W-8BEN-E, 1099, etc.) with dates",
+          "usedByAgents": [
+            "tax_form_w9_compliance"
+          ],
+          "impactIfMissing": {
+            "degraded": [
+              "Cannot confirm what is on file; cannot identify missing/expired forms; must escalate all tax inquiries"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Use customer's taxonomy; avoid exposing tax IDs"
+          }
+        },
+        {
+          "key": "tax_document_expiry_date",
+          "label": "tax_document_expiry_date",
+          "requirement": "optional",
+          "description": "Expiration date of tax form (W-8 forms expire)",
+          "usedByAgents": [
+            "tax_form_w9_compliance"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot proactively flag expired forms; compliance gaps"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "W-8 forms expire every 3 years"
+          }
+        },
+        {
+          "key": "tax_document_status",
+          "label": "tax_document_status",
+          "requirement": "optional",
+          "description": "Status of tax document (Valid, Expired, Pending Review, Rejected)",
+          "usedByAgents": [
+            "tax_form_w9_compliance"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot route based on document status; less efficient compliance workflow"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Drives renewal requests"
+          }
+        },
+        {
+          "key": "tax_withholding_rate",
+          "label": "tax_withholding_rate",
+          "requirement": "optional",
+          "description": "Applicable withholding tax percentage",
+          "usedByAgents": [
+            "tax_form_w9_compliance",
+            "remittance_proof_of_payment"
+          ],
+          "impactIfMissing": {
+            "restricted": [
+              "Cannot explain withholding deductions on payments; supplier confused about short payments"
+            ]
+          },
+          "sourceRef": {
+            "pdf": "schema",
+            "note": "Backup withholding rate if no valid W-9"
+          }
+        }
+      ]
+    }
+  ]
+}
