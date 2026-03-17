@@ -1,0 +1,6 @@
+AP SOP guidance:
+- Intake must classify invoice, credit memo, debit memo, tax forms, statements, payment inquiries and remittance requests.
+- Ambiguous documents go to Needs Review queue.
+- For PO matching, hard stop mismatches beyond tolerance and route exceptions by discrepancy type.
+- For non-PO coding, use category-to-account matrix with mandatory reason codes for overrides.
+- For coding exceptions, route to controller queue with documented evidence.

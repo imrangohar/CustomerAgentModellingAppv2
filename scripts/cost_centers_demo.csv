@@ -1,0 +1,11 @@
+id,name,active,ownerEmail,ownerName,entity
+1000,Corporate HQ,true,controller@appzen.example,Alex Controller,US01
+1100,Finance,true,finance.ops@appzen.example,Mia Finance,US01
+1200,AP Operations,true,ap.ops@appzen.example,Raj AP,US01
+1300,Procurement,true,procurement@appzen.example,Lee Procurement,US01
+1400,Treasury,true,treasury@appzen.example,Sam Treasury,US01
+1500,Facilities,true,facilities@appzen.example,Nina Facilities,US01
+1600,Engineering,true,eng-finance@appzen.example,Chris Eng,US01
+1700,Cloud Operations,true,cloud.ops@appzen.example,Jordan Cloud,US01
+1800,Marketing,true,marketing.ops@appzen.example,Taylor Marketing,US01
+1900,Shared Services,true,shared.services@appzen.example,Casey Shared,US01

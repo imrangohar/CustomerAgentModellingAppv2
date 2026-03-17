@@ -1,0 +1,6 @@
+Procurement policy snippets:
+- PO is required for inventory, fixed assets and recurring contracted services.
+- Repeated non-PO invoices for the same vendor/category trigger PO creation workflow.
+- 3-way matching is mandatory for inventory and high-risk categories.
+- UOM conversions require approved master data.
+- PO change controls require latest approved revision for matching.

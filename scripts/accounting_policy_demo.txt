@@ -1,0 +1,6 @@
+Accounting policy highlights:
+- No PO, No Pay applies to inventory, capex and contracted services.
+- Non-PO invoices require business justification and requester cost center owner validation.
+- Duplicate invoice control is mandatory and enforced before posting.
+- Prepaid recognition applies when service period extends beyond current month and exceeds threshold.
+- Bank change requests must be verified by Treasury before any payment release.
