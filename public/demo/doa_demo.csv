@@ -1,0 +1,11 @@
+entity,department,cost_center,threshold_min,threshold_max,currency,approver_role,backup_approver,sla_hours
+US01,Finance,1100,0,2500,USD,Manager,Senior Manager,24
+US01,Finance,1100,2501,10000,USD,Director,VP Finance,48
+US01,AP Operations,1200,0,5000,USD,AP Lead,Controller,24
+US01,AP Operations,1200,5001,25000,USD,Controller,CFO,48
+US01,Procurement,1300,0,7500,USD,Procurement Manager,Director Procurement,24
+US01,Procurement,1300,7501,50000,USD,Director Procurement,CPO,48
+US01,Engineering,1600,0,10000,USD,Engineering Manager,Director Engineering,24
+US01,Engineering,1600,10001,100000,USD,Director Engineering,VP Engineering,48
+US01,Marketing,1800,0,8000,USD,Marketing Manager,Director Marketing,24
+US01,Marketing,1800,8001,60000,USD,Director Marketing,CMO,48

@@ -1,0 +1,21 @@
+code,name,type,active,parentCode
+5110,Hosting Costs,Expense,true,
+6300,Professional Services,Expense,true,
+6310,Legal Fees,Expense,true,6300
+6320,Accounting Fees,Expense,true,6300
+6340,Consultants,Expense,true,6300
+6500,Marketing Programs,Expense,true,
+6750,Software Subscriptions,Expense,true,
+7010,Rent,Expense,true,
+7015,Utilities,Expense,true,
+7050,Insurance,Expense,true,
+1500,Prepaid Expenses,Asset,true,
+1600,Computer Equipment,Asset,true,
+1650,Furniture and Fixtures,Asset,true,
+2100,Accounts Payable,Liability,true,
+2200,Accrued Expenses,Liability,true,
+4000,Revenue,Revenue,true,
+5000,Cost of Goods Sold,COGS,true,
+5100,Direct Materials,COGS,true,5000
+5200,Freight In,COGS,true,5000
+9999,Suspense Account,Expense,true,
