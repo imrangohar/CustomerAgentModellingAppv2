@@ -1,0 +1,345 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; line-height:1.4; }
+h1 { font-size: 28px; margin: 0 0 8px 0; }
+h2 { font-size: 20px; margin: 20px 0 8px; }
+h3 { font-size: 16px; margin: 14px 0 6px; }
+p, li { font-size: 12px; }
+</style></head><body><h1>User Guide: Policy-Driven Autonomous AP Setup</h1>
+<p></p>
+<h2>1) Overview</h2>
+<p>This web app is a guided onboarding workspace for AP policy setup. It helps business users capture policy decisions, review prefilled suggestions from uploads, collaborate on unanswered questions, and export policy/SOP outputs.</p>
+<p></p>
+<p>Primary audience:</p>
+<ul>
+<li>Business users (Controller, AP Ops, Procurement, Treasury, Tax)</li>
+</ul>
+<p></p>
+<p>Secondary audience:</p>
+<ul>
+<li>IT/implementation users who need integration, troubleshooting, and export context</li>
+</ul>
+<p></p>
+<p>Key terms in the UI:</p>
+<ul>
+<li>`Step`: A stage in onboarding (Step 1 to Step 9)</li>
+<li>`Prefilled`: Suggested answer loaded from uploaded files or defaults</li>
+<li>`Confirm`: Marks an answer as accepted</li>
+<li>`Assign`: Sends a question to a teammate using a simulated share flow</li>
+<li>`Pending / Partial / Complete`: Section completion status</li>
+</ul>
+<p></p>
+<h2>2) Roles & Permissions</h2>
+<p>There is no strict role-based access control in the current prototype.</p>
+<p></p>
+<p>What exists:</p>
+<ul>
+<li>Persona ownership labels per question (for guidance only)</li>
+<li>Collaboration assignment workflow with accept/reject states</li>
+</ul>
+<p></p>
+<p>What does not exist yet:</p>
+<ul>
+<li>User invitation management</li>
+<li>Permission-based restrictions by role</li>
+</ul>
+<p></p>
+<h2>3) Quick Start</h2>
+<p>Use [Quick_Start.md](./Quick_Start.md) for a fast first run.</p>
+<p></p>
+<h2>4) Navigation & Layout</h2>
+<p>Left sidebar routes:</p>
+<ul>
+<li>`/onboarding` → `Onboarding`</li>
+<li>`/inbox` → `Status`</li>
+<li>`/collaboration` → `Collaboration`</li>
+<li>`/sop` → `SOP`</li>
+<li>`/settings` → `Settings`</li>
+</ul>
+<p></p>
+<p>Top bar:</p>
+<ul>
+<li>Route title and subtitle</li>
+<li>Static `Help & Guidance` link</li>
+</ul>
+<p></p>
+<p>Notes:</p>
+<ul>
+<li>`/` redirects to `/onboarding`</li>
+<li>`Settings` is a placeholder in this prototype</li>
+</ul>
+<p></p>
+<h2>5) Core Workflows</h2>
+<p></p>
+<h3>Workflow A: Complete onboarding and activate</h3>
+<p>Goal:</p>
+<ul>
+<li>Capture required policy decisions and activate the prototype</li>
+</ul>
+<p></p>
+<p>Preconditions:</p>
+<ul>
+<li>Access to `/onboarding`</li>
+<li>Optional policy/input files for import</li>
+</ul>
+<p></p>
+<p>Steps:</p>
+<p>1. In `Step 1: Onboarding Scope & Setup`, enter:</p>
+<p>   - `Company Name`</p>
+<p>   - `Rollout Track`</p>
+<p>   - `ERP/P2P System`</p>
+<p>   - `PO Usage Band`</p>
+<p>   - `AP Team Size`</p>
+<p>   - `Industry Vertical`</p>
+<p>2. Click `Apply Tailoring`.</p>
+<p>3. In `Step 2: Policy Inputs & Prefill`, upload files or click `Demo Mode: Auto-load Sample Policy Pack`.</p>
+<p>4. Review prefilled records in `Controller Priority Review` and `Prefill Review Queue`.</p>
+<p>5. Confirm values using `Accept` and optionally `Bulk accept high confidence (>=0.8)`.</p>
+<p>6. Complete Steps 3 to 8 question by question.</p>
+<p>7. In `Step 9: Review, Activate & Export`, use `Review missing`, `Assign remaining`, and `View SOP section`.</p>
+<p>8. Click `Activate`.</p>
+<p></p>
+<p>Success looks like:</p>
+<ul>
+<li>High required confirmed counts in section cards</li>
+<li>Step 9 table shows mostly `Complete` or `Partial` with low unresolved items</li>
+<li>`/inbox` (`Status`) opens successfully after activation</li>
+</ul>
+<p></p>
+<p>Common mistakes and fixes:</p>
+<ul>
+<li>PO matching appears missing:</li>
+</ul>
+<p>  - Cause: `PO Usage Band` is `none`</p>
+<p>  - Fix: update Step 1 tailoring and re-apply</p>
+<ul>
+<li>Section stays incomplete:</li>
+</ul>
+<p>  - Cause: answers are `prefilled_needs_confirmation` but not `confirmed`</p>
+<p>  - Fix: click `Confirm` on required answers</p>
+<p></p>
+<p>What this affects:</p>
+<ul>
+<li>Section completion metrics</li>
+<li>Review hub readiness</li>
+<li>Exported policy/SOP outputs</li>
+</ul>
+<p></p>
+<h3>Workflow B: Upload and prefill</h3>
+<p>Goal:</p>
+<ul>
+<li>Import policy inputs and reduce manual entry</li>
+</ul>
+<p></p>
+<p>Where:</p>
+<ul>
+<li>`/onboarding` → Step 2 (`Policy Inputs & Prefill`)</li>
+</ul>
+<p></p>
+<p>Upload types in UI:</p>
+<ul>
+<li>`Accounting Policy`</li>
+<li>`AP SOP`</li>
+<li>`Procurement Policy`</li>
+<li>`DoA CSV/XLSX`</li>
+<li>`SOP Config CSV`</li>
+<li>`CoA CSV`</li>
+<li>`Cost Center CSV`</li>
+<li>`Other`</li>
+</ul>
+<p></p>
+<p>Steps:</p>
+<p>1. Select `Upload Type`.</p>
+<p>2. Click `Upload file`.</p>
+<p>3. Review upload status message.</p>
+<p>4. Open prefill queue items and confirm valid suggestions.</p>
+<p></p>
+<p>Success looks like:</p>
+<ul>
+<li>Upload status message confirms imported/extracted counts</li>
+<li>`Prefilled Policies` and confidence counters update</li>
+</ul>
+<p></p>
+<p>Common mistakes and fixes:</p>
+<ul>
+<li>`Upload parse failed` message:</li>
+</ul>
+<p>  - Check file structure and selected upload type</p>
+<ul>
+<li>Weak document extraction from PDF/DOCX:</li>
+</ul>
+<p>  - Use structured CSV (`SOP Config CSV`) for deterministic mapping</p>
+<p></p>
+<p>What this affects:</p>
+<ul>
+<li>Prefill queue quality</li>
+<li>Answer confidence and source references</li>
+</ul>
+<p></p>
+<h3>Workflow C: Collaboration assignment and acceptance</h3>
+<p>Goal:</p>
+<ul>
+<li>Route unanswered questions to teammates and confirm responses</li>
+</ul>
+<p></p>
+<p>Where:</p>
+<ul>
+<li>Assign from question rows in onboarding steps</li>
+<li>Bulk assign using `Assign by Step`</li>
+<li>Manage in `/collaboration`</li>
+<li>Respond in `/collaboration/respond?assignmentId=...&token=...`</li>
+</ul>
+<p></p>
+<p>Steps:</p>
+<p>1. Click `Assign` on a question (or use `Assign by Step`).</p>
+<p>2. Send/share generated response link.</p>
+<p>3. Responder enters `Your Email`, `Your Answer`, optional `Comment`, then submits.</p>
+<p>4. Controller opens `/collaboration` and uses `Accept` or `Request clarification`.</p>
+<p></p>
+<p>Success looks like:</p>
+<ul>
+<li>Assignment statuses progress through `sent`, `viewed`, `responded`, `accepted`</li>
+<li>Accepted responses update answer status to confirmed</li>
+</ul>
+<p></p>
+<p>Common mistakes and fixes:</p>
+<ul>
+<li>`Invalid token` on responder page:</li>
+</ul>
+<p>  - Use the exact generated URL from the assignment action</p>
+<p></p>
+<p>What this affects:</p>
+<ul>
+<li>Audit trail and source history</li>
+<li>Section completion status</li>
+</ul>
+<p></p>
+<h3>Workflow D: SOP and policy exports</h3>
+<p>Goal:</p>
+<ul>
+<li>Produce shareable policy and SOP outputs</li>
+</ul>
+<p></p>
+<p>Where:</p>
+<ul>
+<li>Step 9 in onboarding</li>
+<li>`/sop`</li>
+</ul>
+<p></p>
+<p>Available actions:</p>
+<ul>
+<li>Step 9: `Export Policy and Controls` (PDF)</li>
+<li>`/sop`: `Save Version`, `Download PDF`, `Export JSON`</li>
+</ul>
+<p></p>
+<p>Success looks like:</p>
+<ul>
+<li>Downloaded files are generated successfully</li>
+<li>Saved SOP versions appear in the `Saved versions` list</li>
+</ul>
+<p></p>
+<h2>6) Data/Input/Upload Guide</h2>
+<p>CSV and upload behavior implemented:</p>
+<ul>
+<li>`SOP Config CSV`: maps `policyKey` to prefilled values</li>
+<li>`CoA CSV`: loads accounts for account-picker questions</li>
+<li>`Cost Center CSV`: loads cost centers for cost-center-picker questions</li>
+<li>`DoA CSV/XLSX`: parses and stores matrix rows in approvals answer state</li>
+<li>Policy docs (`Accounting Policy`, `AP SOP`, `Procurement Policy`): best-effort text extraction and keyword inference</li>
+</ul>
+<p></p>
+<p>Supported CSV column expectations:</p>
+<ul>
+<li>CoA: `code`, `name`, `type`, `active`, optional `parentCode`/`parent_code`</li>
+<li>Cost Center: `id`, `name`, `active`, `ownerEmail`, `ownerName`, `entity`</li>
+<li>SOP Config: `policyKey`, `value`, optional `valueType`</li>
+</ul>
+<p></p>
+<p>Best practices:</p>
+<ul>
+<li>Use exact header names</li>
+<li>Prefer structured CSV for high-confidence prefill</li>
+<li>Confirm prefilled values before activation</li>
+</ul>
+<p></p>
+<h2>7) Settings & Configuration</h2>
+<p>`/settings` currently displays a placeholder `Workspace Settings` card and informational text only.</p>
+<p>No editable workspace-level settings are implemented yet.</p>
+<p></p>
+<h2>8) Exports, Reports, and Audit</h2>
+<p>Available exports:</p>
+<ul>
+<li>Step 9 `Export Policy and Controls` (PDF)</li>
+<li>`/sop` `Download PDF`</li>
+<li>`/sop` `Export JSON`</li>
+</ul>
+<p></p>
+<p>Audit and traceability available in app state:</p>
+<ul>
+<li>Per-question sources (`manual`, `sop_csv`, `document_extract`, `collaboration`)</li>
+<li>Per-question history timeline</li>
+<li>Assignment audit trail</li>
+<li>SOP version snapshots</li>
+</ul>
+<p></p>
+<h2>9) Notifications & Collaboration</h2>
+<p>Implemented collaboration behavior:</p>
+<ul>
+<li>Per-question assignment</li>
+<li>Multi-step assignment via `Assign by Step`</li>
+<li>Simulated communication helpers:</li>
+</ul>
+<p>  - copied email text</p>
+<p>  - mailto link text in confirmation alert</p>
+<p>  - responder share link with token validation</p>
+<p></p>
+<p>Not implemented:</p>
+<ul>
+<li>Real email sending</li>
+<li>External notification channels (Slack/Teams/etc.)</li>
+</ul>
+<p></p>
+<h2>10) FAQ & Troubleshooting</h2>
+<p></p>
+<h3>Why can’t I complete a section?</h3>
+<p>Only required questions count toward completion. `Prefilled` answers still need `Confirm`.</p>
+<p></p>
+<h3>Why is a section/question not showing?</h3>
+<p>Step 1 tailoring controls visibility. Example: PO matching can be hidden when `PO Usage Band` is `none`.</p>
+<p></p>
+<h3>How do I reset and retry?</h3>
+<p>Clear local storage key `policy-driven-ap-onboarding` and reload the app.</p>
+<p></p>
+<h3>Where do I find history and sources?</h3>
+<p>Use `View sources` and `View history` on each question row.</p>
+<p></p>
+<h3>Where do I see collaboration status?</h3>
+<p>Use `/collaboration` and filter by status.</p>
+<p></p>
+<h3>How do I contact support?</h3>
+<p>Use your internal implementation owner/contact (placeholder in this prototype).</p>
+<p></p>
+<h2>11) Admin/IT Reference (Code Map)</h2>
+<p>For implementation users, key workflow code is located at:</p>
+<ul>
+<li>Main routes: `src/app/onboarding/page.tsx`, `src/app/collaboration/page.tsx`, `src/app/collaboration/respond/page.tsx`, `src/app/sop/page.tsx`, `src/app/inbox/page.tsx`</li>
+<li>Layout and navigation: `src/components/layout/*`</li>
+<li>Question rendering and interaction: `src/components/QuestionRow.tsx`, `src/components/AssignmentModal.tsx`, `src/components/BulkAssignDialog.tsx`</li>
+<li>State and persistence: `src/store/onboardingStore.ts`</li>
+<li>Scope and status logic: `src/lib/scopeRules.ts`, `src/lib/layerStatus.ts`</li>
+<li>Prefill/import logic: `src/lib/prefillEngine.ts`, `src/lib/prefillMappings.ts`</li>
+<li>SOP/export logic: `src/lib/sopGenerator.ts`, `src/lib/pdfExport.ts`, `src/lib/policyControlsGenerator.ts`</li>
+</ul>
+<p></p>
+<h2>Screenshots</h2>
+<p>Screenshots are not included in this version due environment capture constraints.</p>
+<p>Add images to `/docs/images` and reference them here when captured.</p>
+<h2>Screenshots</h2>
+<p>Onboarding</p>
+<p><img src="file:///Users/akale/Projects/my-codex-webapp/docs/images/onboarding.png" style="width:980px;"></p>
+<p>Collaboration</p>
+<p><img src="file:///Users/akale/Projects/my-codex-webapp/docs/images/collaboration.png" style="width:980px;"></p>
+<p>SOP</p>
+<p><img src="file:///Users/akale/Projects/my-codex-webapp/docs/images/sop.png" style="width:980px;"></p>
+<p>Status</p>
+<p><img src="file:///Users/akale/Projects/my-codex-webapp/docs/images/status.png" style="width:980px;"></p>
+</body></html>
