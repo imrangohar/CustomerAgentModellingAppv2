@@ -1,0 +1,15 @@
+export const keywordToPolicyKey: { policyKey: string; keywords: string[] }[] = [
+  { policyKey: 'l1.intake.channels', keywords: ['invoice inbox', 'intake channel', 'email intake'] },
+  { policyKey: 'l2.po.required', keywords: ['po required', 'no po no pay'] },
+  { policyKey: 'l2.receipts.requiredForPayment', keywords: ['receipt required', 'goods receipt'] },
+  { policyKey: 'l3.nonpo.threshold', keywords: ['non po threshold', 'non-po limit'] },
+  { policyKey: 'l4.coding.accountSelection', keywords: ['gl account', 'coding policy', 'chart of accounts'] },
+  { policyKey: 'l4.tax.vatCodeLogic', keywords: ['vat code', 'tax code determination'] },
+  { policyKey: 'l5.approvals.model', keywords: ['approval model', 'approval workflow'] },
+  { policyKey: 'l5.approvals.escalationHours', keywords: ['approval escalation', 'reminder cadence'] },
+  { policyKey: 'l6.controls.duplicateCheck', keywords: ['duplicate invoice', 'duplicate check'] },
+  { policyKey: 'l6.controls.bankChange', keywords: ['bank change', 'bank verification'] },
+  { policyKey: 'l7.integration.erpSystem', keywords: ['erp', 'sap', 'oracle', 'workday'] },
+  { policyKey: 'sap.l2.grBasedIv', keywords: ['gr based', 'gr-based iv'] },
+  { policyKey: 'sap.l7.archiveLink', keywords: ['archivelink', 'sap connect'] },
+];
