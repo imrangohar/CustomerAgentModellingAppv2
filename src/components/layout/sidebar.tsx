@@ -6,7 +6,6 @@ import { usePathname } from 'next/navigation';
 import {
   Inbox,
   Settings,
-  Sparkles,
   WandSparkles,
   Workflow,
   Users,
@@ -18,6 +17,12 @@ import {
   ChevronDown,
   Grid2x2,
 } from 'lucide-react';
+
+function AppZenLogo() {
+  return (
+    <img src="/appzen-logo.png" alt="AppZen" style={{ height: '28px', width: 'auto' }} />
+  );
+}
 import { cn } from '@/lib/utils';
 
 type NavItem = {
@@ -71,7 +76,7 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
               </button>
             </div>
             <div className="space-y-2 px-3">
-              <div className="rounded-md px-2 py-2 text-base font-medium text-app-text">Inbox</div>
+              <div className="rounded-md px-2 py-2 text-base font-medium text-app-text">Agent Modelling</div>
               <div className="mt-1 rounded-md px-2 py-1 text-sm font-medium text-app-text">
                 <div className="mb-1 flex items-center justify-between">
                   <span className="inline-flex items-center gap-2">
@@ -116,10 +121,7 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
         ) : (
           <>
             <div className="flex items-center justify-between border-b border-white/10 px-6 py-5">
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-slate-300" />
-                <div className="text-3xl font-semibold tracking-tight">appzen</div>
-              </div>
+              <AppZenLogo />
               <button
                 onClick={onClose}
                 className="rounded-md p-1 text-slate-300 hover:bg-white/10 md:hidden"

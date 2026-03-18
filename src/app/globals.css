@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -5,13 +7,19 @@
 :root {
   color-scheme: light;
   --ring: 59 130 246;
-  --az-bg: #f5f6f8;
-  --az-card: #ffffff;
-  --az-border: #e7e8ec;
-  --az-sidebar: #3f3a38;
-  --az-text: #16181d;
-  --az-muted: #6b7280;
-  --az-primary: #2563eb;
+  /* AppZen Brand 2025 */
+  --az-bg: #F7F6F2;          /* Ivory */
+  --az-card: #FEFDF9;        /* Ivory Soft */
+  --az-border: #E2DDD2;      /* Stone 1 */
+  --az-sidebar: #3D3533;     /* Cacao */
+  --az-text: #3D3533;        /* Cacao */
+  --az-muted: #746C60;       /* Stone 3 */
+  --az-primary: #4F59C6;     /* Functional Blue */
+  /* Extended palette */
+  --az-cassava: #FEF76C;     /* Cassava yellow */
+  --az-coral: #FD807C;       /* Coral */
+  --az-stone2: #B6B0A2;
+  --az-stone4: #544D45;
 }
 
 * {
@@ -19,7 +27,7 @@
 }
 
 body {
-  font-family: Inter, "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  font-family: 'Manrope', 'Neue Haas Grotesk', Arial, sans-serif;
   @apply bg-app-bg text-app-text antialiased;
 }
 

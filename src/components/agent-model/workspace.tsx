@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import {
+  aggregateRows,
   computeModelTotals,
   formatDateTime,
   normalizeWorkbookRows,
@@ -28,7 +29,8 @@ interface ApiResponse {
 
 interface CustomerOperationalAnswers {
   auditorCount: string;
-  reimbursementCycleTime: '' | '1 day' | '3 days' | '1 week' | 'more than 1 week';
+  reimbursementCycleTime: '' | '5 mins' | '10 mins' | '15 mins' | '30 mins' | '60 mins' | 'other';
+  reimbursementCycleTimeCustom: string;
 }
 
 type JsPdfCtor = new (options?: { unit?: string; format?: string }) => {
@@ -218,8 +220,9 @@ export function AgentModelWorkspace({ panel }: { panel: AgentModelPanel }) {
   const [exporting, setExporting] = useState(false);
 
   const [timeMinutes, setTimeMinutes] = useState(2);
-  const [creditsPerAction, setCreditsPerAction] = useState(2);
+  const [creditsPerAction, setCreditsPerAction] = useState(1);
   const [fteCost, setFteCost] = useState(35000);
+  const [costPerCredit, setCostPerCredit] = useState(0.30);
 
   const customers = useMemo(() => uniqueCustomerNames(rows), [rows]);
   const filteredCustomers = useMemo(() => {
@@ -234,8 +237,8 @@ export function AgentModelWorkspace({ panel }: { panel: AgentModelPanel }) {
   }, [rows, selectedCustomer]);
 
   const selectedOperationalAnswers: CustomerOperationalAnswers = selectedCustomer
-    ? (customerOperationalAnswers[selectedCustomer] ?? { auditorCount: '', reimbursementCycleTime: '' })
-    : { auditorCount: '', reimbursementCycleTime: '' };
+    ? (customerOperationalAnswers[selectedCustomer] ?? { auditorCount: '', reimbursementCycleTime: '', reimbursementCycleTimeCustom: '' })
+    : { auditorCount: '', reimbursementCycleTime: '', reimbursementCycleTimeCustom: '' };
 
   const summary = useMemo(() => summarizeCustomer(selectedRows), [selectedRows]);
   const allModels = useMemo(() => computeModelTotals(selectedRows), [selectedRows]);
@@ -382,10 +385,13 @@ export function AgentModelWorkspace({ panel }: { panel: AgentModelPanel }) {
     setNotice({ kind: 'info', message: `Parsing ${file.name}...` });
 
     try {
+      setNotice({ kind: 'info', message: `Reading file…` });
       const buffer = await file.arrayBuffer();
       const workbook = XLSX.read(new Uint8Array(buffer), { type: 'array' });
       const currentSheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[currentSheetName];
+
+      setNotice({ kind: 'info', message: `Parsing rows…` });
       const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, {
         defval: '',
         raw: false,
@@ -398,20 +404,50 @@ export function AgentModelWorkspace({ panel }: { panel: AgentModelPanel }) {
         return;
       }
 
+      setNotice({ kind: 'info', message: `Aggregating ${normalized.rows.length.toLocaleString()} rows…` });
+      const aggregated = aggregateRows(normalized.rows);
+      console.log(`[upload] raw rows: ${normalized.rows.length}, aggregated: ${aggregated.length}`);
+
       const metadata: AgentModelMetadata = {
         version: 1,
         filename: file.name,
         savedAt: Date.now(),
         sheetName: currentSheetName,
-        rows: normalized.rows,
+        rows: aggregated,
       };
 
-      const saveRes = await fetch('/api/agent-model/metadata', {
+      // ── Chunked upload — 2 000 rows per request (~1-2 MB each) ────────────
+      const CHUNK = 2000;
+      const totalChunks = Math.ceil(aggregated.length / CHUNK);
+
+      for (let i = 0; i < totalChunks; i++) {
+        const chunk = aggregated.slice(i * CHUNK, (i + 1) * CHUNK);
+        const phase = i === 0 ? 'init' : 'append';
+        setNotice({ kind: 'info', message: `Uploading chunk ${i + 1}/${totalChunks}…` });
+
+        const res = await fetch('/api/agent-model/metadata', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(
+            phase === 'init'
+              ? { _phase: 'init', version: metadata.version, filename: metadata.filename, savedAt: metadata.savedAt, sheetName: metadata.sheetName, rows: chunk }
+              : { _phase: 'append', rows: chunk }
+          ),
+        });
+        const resJson = (await res.json()) as ApiResponse;
+        if (!resJson.ok) {
+          setNotice({ kind: 'error', message: resJson.error || 'Chunk upload failed.' });
+          return;
+        }
+      }
+
+      setNotice({ kind: 'info', message: 'Finalizing…' });
+      const finalRes = await fetch('/api/agent-model/metadata', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(metadata),
+        body: JSON.stringify({ _phase: 'finalize' }),
       });
-      const savePayload = (await saveRes.json()) as ApiResponse;
+      const savePayload = (await finalRes.json()) as ApiResponse;
 
       if (!savePayload.ok) {
         setNotice({ kind: 'error', message: savePayload.error || 'Unable to save metadata to shared storage.' });
@@ -420,8 +456,10 @@ export function AgentModelWorkspace({ panel }: { panel: AgentModelPanel }) {
 
       hydrateFromMetadata(metadata, savePayload.source || 'memory');
       setNotice({ kind: 'success', message: `Metadata uploaded: ${metadata.rows.length.toLocaleString()} rows from ${metadata.filename}.` });
-    } catch {
-      setNotice({ kind: 'error', message: 'Failed to parse or upload this file.' });
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      console.error('[handleUpload] error:', detail);
+      setNotice({ kind: 'error', message: `Upload error: ${detail}` });
     } finally {
       setLoading(false);
     }
@@ -690,26 +728,54 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
               <CardContent className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-slate-700">Number of auditors processing and auditing expense reports</label>
-                  <Input
-                    type="number"
-                    min={1}
-                    placeholder="Enter number of auditors"
-                    disabled={!selectedCustomer}
-                    value={selectedOperationalAnswers.auditorCount}
-                    onChange={(event) => {
-                      if (!selectedCustomer) return;
-                      setCustomerOperationalAnswers((prev) => ({
-                        ...prev,
-                        [selectedCustomer]: {
-                          ...(prev[selectedCustomer] ?? { auditorCount: '', reimbursementCycleTime: '' }),
-                          auditorCount: event.target.value,
-                        },
-                      }));
-                    }}
-                  />
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        step={1}
+                        disabled={!selectedCustomer}
+                        value={Math.min(Number(selectedOperationalAnswers.auditorCount) || 0, 100)}
+                        onChange={(e) => {
+                          if (!selectedCustomer) return;
+                          setCustomerOperationalAnswers((prev) => ({
+                            ...prev,
+                            [selectedCustomer]: {
+                              ...(prev[selectedCustomer] ?? { auditorCount: '', reimbursementCycleTime: '', reimbursementCycleTimeCustom: '' }),
+                              auditorCount: e.target.value,
+                            },
+                          }));
+                        }}
+                        className="w-full accent-violet-600 disabled:opacity-40"
+                      />
+                      <span className="text-sm font-semibold text-slate-700 w-8 text-right">
+                        {Number(selectedOperationalAnswers.auditorCount) || 0}
+                      </span>
+                    </div>
+                    {Number(selectedOperationalAnswers.auditorCount) >= 100 && (
+                      <Input
+                        type="number"
+                        min={100}
+                        placeholder="Enter exact number of auditors"
+                        disabled={!selectedCustomer}
+                        value={selectedOperationalAnswers.auditorCount}
+                        onChange={(e) => {
+                          if (!selectedCustomer) return;
+                          setCustomerOperationalAnswers((prev) => ({
+                            ...prev,
+                            [selectedCustomer]: {
+                              ...(prev[selectedCustomer] ?? { auditorCount: '', reimbursementCycleTime: '', reimbursementCycleTimeCustom: '' }),
+                              auditorCount: e.target.value,
+                            },
+                          }));
+                        }}
+                      />
+                    )}
+                  </div>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-700">Cycle time for reimbursement</label>
+                  <label className="text-sm font-medium text-slate-700">Auditor Decision Cycle Time</label>
                   <select
                     className="h-10 w-full rounded-md border border-app-border bg-white px-3 text-sm disabled:bg-slate-50"
                     disabled={!selectedCustomer}
@@ -720,18 +786,38 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
                       setCustomerOperationalAnswers((prev) => ({
                         ...prev,
                         [selectedCustomer]: {
-                          ...(prev[selectedCustomer] ?? { auditorCount: '', reimbursementCycleTime: '' }),
+                          ...(prev[selectedCustomer] ?? { auditorCount: '', reimbursementCycleTime: '', reimbursementCycleTimeCustom: '' }),
                           reimbursementCycleTime: nextValue,
+                          reimbursementCycleTimeCustom: nextValue !== 'other' ? '' : (prev[selectedCustomer]?.reimbursementCycleTimeCustom ?? ''),
                         },
                       }));
                     }}
                   >
                     <option value="">{selectedCustomer ? 'Select cycle time' : 'Select a customer first'}</option>
-                    <option value="1 day">1 day</option>
-                    <option value="3 days">3 days</option>
-                    <option value="1 week">1 week</option>
-                    <option value="more than 1 week">more than 1 week</option>
+                    <option value="5 mins">5 mins</option>
+                    <option value="10 mins">10 mins</option>
+                    <option value="15 mins">15 mins</option>
+                    <option value="30 mins">30 mins</option>
+                    <option value="60 mins">60 mins</option>
+                    <option value="other">Other</option>
                   </select>
+                  {selectedOperationalAnswers.reimbursementCycleTime === 'other' && (
+                    <Input
+                      placeholder="Enter custom cycle time"
+                      disabled={!selectedCustomer}
+                      value={selectedOperationalAnswers.reimbursementCycleTimeCustom}
+                      onChange={(e) => {
+                        if (!selectedCustomer) return;
+                        setCustomerOperationalAnswers((prev) => ({
+                          ...prev,
+                          [selectedCustomer]: {
+                            ...(prev[selectedCustomer] ?? { auditorCount: '', reimbursementCycleTime: '', reimbursementCycleTimeCustom: '' }),
+                            reimbursementCycleTimeCustom: e.target.value,
+                          },
+                        }));
+                      }}
+                    />
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -761,7 +847,8 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
                         </thead>
                         <tbody>
                           {top5.map((item, index) => {
-                            const pct = (item.total / top5MaxTotal) * 100;
+                            const highRiskPct = (item.total / top5MaxTotal) * 100;
+                            const returnedWithinPct = item.total > 0 ? (item.returned / item.total) * 100 : 0;
                             return (
                               <tr key={item.model} className="border-t border-slate-100">
                                 <td className="px-3 py-2">
@@ -773,9 +860,11 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
                                 <td className="px-3 py-2">{item.total.toLocaleString()}</td>
                                 <td className="px-3 py-2">{item.returned.toLocaleString()}</td>
                                 <td className="px-3 py-2">
-                                  <div className="h-2 w-32 rounded bg-slate-200">
-                                    <div className="h-2 rounded bg-slate-600" style={{ width: `${pct.toFixed(1)}%` }} />
+                                  <div className="relative h-3 w-32 overflow-hidden rounded bg-slate-100">
+                                    <div className="absolute inset-y-0 left-0 rounded bg-slate-300" style={{ width: `${highRiskPct.toFixed(1)}%` }} />
+                                    <div className="absolute inset-y-0 left-0 rounded bg-slate-600" style={{ width: `${(highRiskPct * returnedWithinPct / 100).toFixed(1)}%` }} />
                                   </div>
+                                  <p className="mt-0.5 text-[10px] text-slate-400">{returnedWithinPct.toFixed(1)}% returned</p>
                                 </td>
                               </tr>
                             );
@@ -801,7 +890,7 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
                             const autoImpact = summary.totalHighRisk ? ((item.total / summary.totalHighRisk) * 100).toFixed(1) : '0.0';
                             const rejectionRate = item.total ? ((item.returned / item.total) * 100).toFixed(1) : '0.0';
                             const approvalRate = item.total ? (((item.total - item.returned) / item.total) * 100).toFixed(1) : '0.0';
-                            const dist = (item.returned / top5MaxReturned) * 100;
+                            const rejectionBarPct = item.total > 0 ? (item.returned / item.total) * 100 : 0;
                             return (
                               <tr key={`perf-${item.model}`} className="border-t border-slate-100">
                                 <td className="px-3 py-2">{index + 1}</td>
@@ -810,9 +899,11 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
                                 <td className="px-3 py-2">{rejectionRate}%</td>
                                 <td className="px-3 py-2">{approvalRate}%</td>
                                 <td className="px-3 py-2">
-                                  <div className="h-2 w-32 rounded bg-slate-200">
-                                    <div className="h-2 rounded bg-emerald-600" style={{ width: `${dist.toFixed(1)}%` }} />
+                                  <div className="relative h-3 w-32 overflow-hidden rounded bg-slate-100">
+                                    <div className="absolute inset-y-0 left-0 rounded bg-emerald-400" style={{ width: `${(100 - rejectionBarPct).toFixed(1)}%` }} />
+                                    <div className="absolute inset-y-0 right-0 rounded bg-red-300" style={{ width: `${rejectionBarPct.toFixed(1)}%` }} />
                                   </div>
+                                  <p className="mt-0.5 text-[10px] text-slate-400">{(100 - rejectionBarPct).toFixed(1)}% approved</p>
                                 </td>
                               </tr>
                             );
@@ -918,10 +1009,24 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
                     />
                     <p className="mt-1 text-right text-sm font-semibold text-slate-700">${fteCost.toLocaleString()}</p>
                   </div>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Cost per Credit</p>
+                    <p className="mb-2 text-xs text-slate-500">USD per credit</p>
+                    <input
+                      type="range"
+                      min={0.01}
+                      max={2.00}
+                      step={0.01}
+                      value={costPerCredit}
+                      onChange={(event) => setCostPerCredit(Number(event.target.value))}
+                      className="w-full"
+                    />
+                    <p className="mt-1 text-right text-sm font-semibold text-slate-700">${costPerCredit.toFixed(2)}</p>
+                  </div>
                 </div>
 
                 {roi ? (
-                  <div className="grid gap-3 md:grid-cols-4">
+                  <div className="grid gap-3 md:grid-cols-5">
                     <div className="rounded-xl bg-slate-900 px-4 py-4 text-center text-white">
                       <p className="text-xs uppercase tracking-wide text-slate-300">Auditor Time Saved</p>
                       <p className="mt-1 text-xl font-semibold">{roi.displayTime}</p>
@@ -942,9 +1047,62 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
                       <p className="mt-1 text-xl font-semibold">{roi.creditConsumption.toLocaleString()}</p>
                       <p className="mt-1 text-xs text-slate-400">{creditsPerAction} credits per action</p>
                     </div>
+                    <div className="rounded-xl bg-slate-900 px-4 py-4 text-center text-white">
+                      <p className="text-xs uppercase tracking-wide text-slate-300">Cost of Credit</p>
+                      <p className="mt-1 text-xl font-semibold">${(roi.creditConsumption * costPerCredit).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                      <p className="mt-1 text-xs text-slate-400">${costPerCredit.toFixed(2)} per credit</p>
+                    </div>
                   </div>
                 ) : (
                   <p className="text-sm text-slate-500">Select a customer to see ROI metrics.</p>
+                )}
+
+                {roi && (() => {
+                  const roiValue = roi.fteSavings - (roi.creditConsumption * costPerCredit);
+                  const roiPositive = roiValue >= 0;
+                  return (
+                    <div className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm font-medium ${roiPositive ? 'border-green-200 bg-green-50 text-green-800' : 'border-red-200 bg-red-50 text-red-800'}`}>
+                      <span className="mt-0.5 text-base">{roiPositive ? '✓' : '✗'}</span>
+                      <span>
+                        Return on Investment: <strong>${Math.abs(Math.round(roiValue)).toLocaleString()}</strong> {roiPositive ? 'net gain' : 'net cost'}.
+                        {' '}FTE Savings Cost (${Math.round(roi.fteSavings).toLocaleString()}) − Cost of Credits (${Math.round(roi.creditConsumption * costPerCredit).toLocaleString()}).
+                        {' '}{roiPositive ? 'Automation delivers a positive return.' : 'Credit costs currently exceed FTE savings.'}
+                      </span>
+                    </div>
+                  );
+                })()}
+
+                {roi && selectedOperationalAnswers.auditorCount !== '' && (
+                  (() => {
+                    const auditors = Number(selectedOperationalAnswers.auditorCount);
+                    const fteDelta = auditors - roi.fteEquivalent;
+                    const isPositive = fteDelta >= 0;
+                    return (
+                      <div className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm font-medium ${isPositive ? 'border-green-200 bg-green-50 text-green-800' : 'border-red-200 bg-red-50 text-red-800'}`}>
+                        <span className="mt-0.5 text-base">{isPositive ? '✓' : '✗'}</span>
+                        <span>
+                          FTE headcount required: <strong>{fteDelta.toFixed(2)} FTE</strong>
+                          {' '}({auditors} auditors entered − {roi.fteEquivalent.toFixed(2)} FTE equivalent).
+                          {' '}{isPositive ? 'Automation covers the equivalent of these auditors, freeing capacity.' : 'Automation does not yet cover the full auditor headcount — additional efficiency gains needed.'}
+                        </span>
+                      </div>
+                    );
+                  })()
+                )}
+
+                {roi && selectedOperationalAnswers.reimbursementCycleTime && (
+                  <div className="flex items-start gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-800">
+                    <span className="mt-0.5 text-base">✓</span>
+                    <span>
+                      Decision Cycle Time Compression: auditor cycle time reduced from{' '}
+                      <strong>
+                        {selectedOperationalAnswers.reimbursementCycleTime === 'other'
+                          ? (selectedOperationalAnswers.reimbursementCycleTimeCustom || 'custom')
+                          : selectedOperationalAnswers.reimbursementCycleTime}
+                      </strong>{' '}
+                      to <strong>1–2 mins with Agents</strong>.
+                    </span>
+                  </div>
                 )}
 
                 <div className="flex flex-wrap gap-2 border-t border-slate-200 pt-3">
@@ -961,50 +1119,121 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
             </Card>
           </div>
 
-          <div className="pointer-events-none fixed -left-[100000px] top-0 z-[-1] w-[1200px] bg-[#f5f6f8] p-8" aria-hidden="true">
+          <div className="pointer-events-none fixed -left-[100000px] top-0 z-[-1] w-[1200px] p-8" style={{ background: '#F7F6F2', fontFamily: "'Manrope', Arial, sans-serif" }} aria-hidden="true">
             <div ref={reportExportRef} className="space-y-4">
-              <div className="rounded-2xl border border-app-border bg-white p-6 shadow-soft">
-                <h1 className="text-4xl font-semibold text-slate-900">AI Agent transformation</h1>
-                <p className="mt-3 text-2xl font-semibold text-slate-700">{selectedCustomer || 'No customer selected'}</p>
+              {/* Branded header — Cacao background (brand primary dark) */}
+              <div className="rounded-2xl overflow-hidden" style={{ background: '#3D3533' }}>
+                <div className="px-8 pt-8 pb-5">
+                  <div className="flex items-center justify-between">
+                    {/* AppZen logo */}
+                    <img src="/appzen-logo.png" alt="AppZen" style={{ height: '32px', width: 'auto' }} />
+                    <span style={{ color: '#B6B0A2', fontSize: '0.8rem' }}>{new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                  </div>
+                  <h1 className="mt-5" style={{ color: '#FEFDF9', fontSize: '2.25rem', fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.1 }}>AI Agent Transformation</h1>
+                  <p className="mt-1" style={{ color: '#FEF76C', fontSize: '1.25rem', fontWeight: 600 }}>{selectedCustomer || 'No customer selected'}</p>
+                </div>
+                <div style={{ height: '1px', background: 'rgba(254,253,249,0.15)' }} />
+                <div className="flex gap-8 px-8 py-4">
+                  {summary.industry && <span style={{ color: '#B6B0A2', fontSize: '0.8rem' }}><span style={{ color: '#FEFDF9', fontWeight: 600 }}>Industry: </span>{summary.industry}</span>}
+                  {summary.subIndustry && <span style={{ color: '#B6B0A2', fontSize: '0.8rem' }}><span style={{ color: '#FEFDF9', fontWeight: 600 }}>Sub-Industry: </span>{summary.subIndustry}</span>}
+                  {summary.totalHighRisk > 0 && <span style={{ color: '#B6B0A2', fontSize: '0.8rem' }}><span style={{ color: '#FEFDF9', fontWeight: 600 }}>High-Risk Lines: </span>{summary.totalHighRisk.toLocaleString()}</span>}
+                </div>
               </div>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>ROI Impact Calculator</CardTitle>
+              <Card style={{ background: '#FEFDF9', border: '1px solid #E2DDD2' }}>
+                <CardHeader style={{ borderBottom: '1px solid #E2DDD2' }}>
+                  <CardTitle style={{ color: '#3D3533', fontFamily: "'Manrope', Arial, sans-serif" }}>ROI Impact Calculator</CardTitle>
                 </CardHeader>
                 <CardContent>
                   {roi ? (
-                    <div className="grid gap-3 grid-cols-4">
-                      <div className="rounded-xl bg-slate-900 px-4 py-4 text-center text-white">
-                        <p className="text-xs uppercase tracking-wide text-slate-300">Auditor Time Saved</p>
-                        <p className="mt-1 text-xl font-semibold">{roi.displayTime}</p>
-                        <p className="mt-1 text-xs text-slate-400">{roi.timeSavedMins.toLocaleString()} minutes total</p>
+                    <div className="grid gap-3 grid-cols-5">
+                      {/* Cacao tiles with Cassava labels */}
+                      <div className="rounded-xl px-4 py-4 text-center" style={{ background: '#3D3533' }}>
+                        <p className="text-xs uppercase tracking-wide font-semibold" style={{ color: '#FEF76C', letterSpacing: '0.08em' }}>Auditor Time Saved</p>
+                        <p className="mt-1 text-xl font-bold" style={{ color: '#FEFDF9' }}>{roi.displayTime}</p>
+                        <p className="mt-1 text-xs" style={{ color: '#B6B0A2' }}>{roi.timeSavedMins.toLocaleString()} minutes total</p>
                       </div>
-                      <div className="rounded-xl bg-slate-900 px-4 py-4 text-center text-white">
-                        <p className="text-xs uppercase tracking-wide text-slate-300">FTE Equivalent</p>
-                        <p className="mt-1 text-xl font-semibold">{roi.fteEquivalent.toFixed(2)}</p>
-                        <p className="mt-1 text-xs text-slate-400">1,920 hrs / FTE / year</p>
+                      <div className="rounded-xl px-4 py-4 text-center" style={{ background: '#3D3533' }}>
+                        <p className="text-xs uppercase tracking-wide font-semibold" style={{ color: '#FEF76C', letterSpacing: '0.08em' }}>FTE Equivalent</p>
+                        <p className="mt-1 text-xl font-bold" style={{ color: '#FEFDF9' }}>{roi.fteEquivalent.toFixed(2)}</p>
+                        <p className="mt-1 text-xs" style={{ color: '#B6B0A2' }}>1,920 hrs / FTE / year</p>
                       </div>
-                      <div className="rounded-xl bg-slate-900 px-4 py-4 text-center text-white">
-                        <p className="text-xs uppercase tracking-wide text-slate-300">FTE Savings</p>
-                        <p className="mt-1 text-xl font-semibold">${Math.round(roi.fteSavings).toLocaleString()}</p>
-                        <p className="mt-1 text-xs text-slate-400">at ${fteCost.toLocaleString()} loaded cost</p>
+                      <div className="rounded-xl px-4 py-4 text-center" style={{ background: '#3D3533' }}>
+                        <p className="text-xs uppercase tracking-wide font-semibold" style={{ color: '#FEF76C', letterSpacing: '0.08em' }}>FTE Savings</p>
+                        <p className="mt-1 text-xl font-bold" style={{ color: '#FEFDF9' }}>${Math.round(roi.fteSavings).toLocaleString()}</p>
+                        <p className="mt-1 text-xs" style={{ color: '#B6B0A2' }}>at ${fteCost.toLocaleString()} loaded cost</p>
                       </div>
-                      <div className="rounded-xl bg-slate-900 px-4 py-4 text-center text-white">
-                        <p className="text-xs uppercase tracking-wide text-slate-300">Credit Consumption</p>
-                        <p className="mt-1 text-xl font-semibold">{roi.creditConsumption.toLocaleString()}</p>
-                        <p className="mt-1 text-xs text-slate-400">{creditsPerAction} credits per action</p>
+                      {/* Stone tiles for consumption metrics */}
+                      <div className="rounded-xl px-4 py-4 text-center" style={{ background: '#544D45' }}>
+                        <p className="text-xs uppercase tracking-wide font-semibold" style={{ color: '#E2DDD2', letterSpacing: '0.08em' }}>Credit Consumption</p>
+                        <p className="mt-1 text-xl font-bold" style={{ color: '#FEFDF9' }}>{roi.creditConsumption.toLocaleString()}</p>
+                        <p className="mt-1 text-xs" style={{ color: '#B6B0A2' }}>{creditsPerAction} credits per action</p>
+                      </div>
+                      <div className="rounded-xl px-4 py-4 text-center" style={{ background: '#544D45' }}>
+                        <p className="text-xs uppercase tracking-wide font-semibold" style={{ color: '#E2DDD2', letterSpacing: '0.08em' }}>Cost of Credit</p>
+                        <p className="mt-1 text-xl font-bold" style={{ color: '#FEFDF9' }}>${(roi.creditConsumption * costPerCredit).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                        <p className="mt-1 text-xs" style={{ color: '#B6B0A2' }}>${costPerCredit.toFixed(2)} per credit</p>
                       </div>
                     </div>
                   ) : (
-                    <p className="text-sm text-slate-500">Select a customer to see ROI metrics.</p>
+                    <p className="text-sm" style={{ color: '#746C60' }}>Select a customer to see ROI metrics.</p>
+                  )}
+
+                  {roi && (() => {
+                    const roiValue = roi.fteSavings - (roi.creditConsumption * costPerCredit);
+                    const roiPositive = roiValue >= 0;
+                    return (
+                      <div className="mt-3 flex items-start gap-3 rounded-lg px-4 py-3 text-sm font-medium" style={roiPositive
+                        ? { background: '#C5ECD0', border: '1px solid #0BDC4D', color: '#3D3533' }
+                        : { background: '#FCD6CF', border: '1px solid #F35F45', color: '#3D3533' }}>
+                        <span className="mt-0.5 text-base">{roiPositive ? '✓' : '✗'}</span>
+                        <span>
+                          Return on Investment: <strong>${Math.abs(Math.round(roiValue)).toLocaleString()}</strong> {roiPositive ? 'net gain' : 'net cost'}.
+                          {' '}FTE Savings Cost (${Math.round(roi.fteSavings).toLocaleString()}) − Cost of Credits (${Math.round(roi.creditConsumption * costPerCredit).toLocaleString()}).
+                          {' '}{roiPositive ? 'Automation delivers a positive return.' : 'Credit costs currently exceed FTE savings.'}
+                        </span>
+                      </div>
+                    );
+                  })()}
+
+                  {roi && selectedOperationalAnswers.auditorCount !== '' && (() => {
+                    const auditors = Number(selectedOperationalAnswers.auditorCount);
+                    const fteDelta = auditors - roi.fteEquivalent;
+                    const isPositive = fteDelta >= 0;
+                    return (
+                      <div className="mt-3 flex items-start gap-3 rounded-lg px-4 py-3 text-sm font-medium" style={isPositive
+                        ? { background: '#C5ECD0', border: '1px solid #0BDC4D', color: '#3D3533' }
+                        : { background: '#FCD6CF', border: '1px solid #F35F45', color: '#3D3533' }}>
+                        <span className="mt-0.5 text-base">{isPositive ? '✓' : '✗'}</span>
+                        <span>
+                          FTE headcount required: <strong>{fteDelta.toFixed(2)} FTE</strong>
+                          {' '}({auditors} auditors entered − {roi.fteEquivalent.toFixed(2)} FTE equivalent).
+                          {' '}{isPositive ? 'Automation covers the equivalent of these auditors, freeing capacity.' : 'Automation does not yet cover the full auditor headcount — additional efficiency gains needed.'}
+                        </span>
+                      </div>
+                    );
+                  })()}
+
+                  {roi && selectedOperationalAnswers.reimbursementCycleTime && (
+                    <div className="mt-3 flex items-start gap-3 rounded-lg px-4 py-3 text-sm font-medium" style={{ background: '#C5ECD0', border: '1px solid #0BDC4D', color: '#3D3533' }}>
+                      <span className="mt-0.5 text-base">✓</span>
+                      <span>
+                        Decision Cycle Time Compression: auditor cycle time reduced from{' '}
+                        <strong>
+                          {selectedOperationalAnswers.reimbursementCycleTime === 'other'
+                            ? (selectedOperationalAnswers.reimbursementCycleTimeCustom || 'custom')
+                            : selectedOperationalAnswers.reimbursementCycleTime}
+                        </strong>{' '}
+                        to <strong>1–2 mins with Agents</strong>.
+                      </span>
+                    </div>
                   )}
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>Customer Details</CardTitle>
+              <Card style={{ background: '#FEFDF9', border: '1px solid #E2DDD2' }}>
+                <CardHeader style={{ borderBottom: '1px solid #E2DDD2' }}>
+                  <CardTitle style={{ color: '#3D3533', fontFamily: "'Manrope', Arial, sans-serif" }}>Customer Details</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2 text-sm">
@@ -1034,16 +1263,20 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
                       <span className="font-semibold text-slate-900">{selectedOperationalAnswers.auditorCount || 'Not specified'}</span>
                     </div>
                     <div className="flex items-center justify-between border-t border-slate-200 pt-2">
-                      <span className="text-slate-500">Cycle time for reimbursement</span>
-                      <span className="font-semibold text-slate-900">{selectedOperationalAnswers.reimbursementCycleTime || 'Not specified'}</span>
+                      <span className="text-slate-500">Auditor Decision Cycle Time</span>
+                      <span className="font-semibold text-slate-900">
+                        {selectedOperationalAnswers.reimbursementCycleTime === 'other'
+                          ? (selectedOperationalAnswers.reimbursementCycleTimeCustom || 'Other')
+                          : (selectedOperationalAnswers.reimbursementCycleTime || 'Not specified')}
+                      </span>
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>Top Models by High-Risk Lines</CardTitle>
+              <Card style={{ background: '#FEFDF9', border: '1px solid #E2DDD2' }}>
+                <CardHeader style={{ borderBottom: '1px solid #E2DDD2' }}>
+                  <CardTitle style={{ color: '#3D3533', fontFamily: "'Manrope', Arial, sans-serif" }}>Top Models by High-Risk Lines</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-5">
@@ -1060,7 +1293,8 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
                         </thead>
                         <tbody>
                           {top5.map((item, index) => {
-                            const pct = (item.total / top5MaxTotal) * 100;
+                            const highRiskPct = (item.total / top5MaxTotal) * 100;
+                            const returnedWithinPct = item.total > 0 ? (item.returned / item.total) * 100 : 0;
                             return (
                               <tr key={`exp-top-${item.model}`} className="border-t border-slate-100">
                                 <td className="px-3 py-2">
@@ -1072,9 +1306,11 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
                                 <td className="px-3 py-2">{item.total.toLocaleString()}</td>
                                 <td className="px-3 py-2">{item.returned.toLocaleString()}</td>
                                 <td className="px-3 py-2">
-                                  <div className="h-2 w-32 rounded bg-slate-200">
-                                    <div className="h-2 rounded bg-slate-600" style={{ width: `${pct.toFixed(1)}%` }} />
+                                  <div className="relative h-3 w-32 overflow-hidden rounded bg-slate-100">
+                                    <div className="absolute inset-y-0 left-0 rounded bg-slate-300" style={{ width: `${highRiskPct.toFixed(1)}%` }} />
+                                    <div className="absolute inset-y-0 left-0 rounded bg-slate-600" style={{ width: `${(highRiskPct * returnedWithinPct / 100).toFixed(1)}%` }} />
                                   </div>
+                                  <p className="mt-0.5 text-[10px] text-slate-400">{returnedWithinPct.toFixed(1)}% returned</p>
                                 </td>
                               </tr>
                             );
@@ -1100,7 +1336,7 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
                             const autoImpact = summary.totalHighRisk ? ((item.total / summary.totalHighRisk) * 100).toFixed(1) : '0.0';
                             const rejectionRate = item.total ? ((item.returned / item.total) * 100).toFixed(1) : '0.0';
                             const approvalRate = item.total ? (((item.total - item.returned) / item.total) * 100).toFixed(1) : '0.0';
-                            const dist = (item.returned / top5MaxReturned) * 100;
+                            const rejectionBarPct = item.total > 0 ? (item.returned / item.total) * 100 : 0;
                             return (
                               <tr key={`exp-perf-${item.model}`} className="border-t border-slate-100">
                                 <td className="px-3 py-2">{index + 1}</td>
@@ -1109,9 +1345,11 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
                                 <td className="px-3 py-2">{rejectionRate}%</td>
                                 <td className="px-3 py-2">{approvalRate}%</td>
                                 <td className="px-3 py-2">
-                                  <div className="h-2 w-32 rounded bg-slate-200">
-                                    <div className="h-2 rounded bg-emerald-600" style={{ width: `${dist.toFixed(1)}%` }} />
+                                  <div className="relative h-3 w-32 overflow-hidden rounded bg-slate-100">
+                                    <div className="absolute inset-y-0 left-0 rounded bg-emerald-400" style={{ width: `${(100 - rejectionBarPct).toFixed(1)}%` }} />
+                                    <div className="absolute inset-y-0 right-0 rounded bg-red-300" style={{ width: `${rejectionBarPct.toFixed(1)}%` }} />
                                   </div>
+                                  <p className="mt-0.5 text-[10px] text-slate-400">{(100 - rejectionBarPct).toFixed(1)}% approved</p>
                                 </td>
                               </tr>
                             );
@@ -1176,20 +1414,6 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
                       )}
                     </div>
 
-                    <div className="rounded-xl border border-app-border bg-white p-4">
-                      <h3 className="text-sm font-semibold text-slate-900">AI Agent Work Packs Summary</h3>
-                      <p className="mt-1 text-xs text-slate-500">
-                        Included from provided source PDF to preserve original typography and formatting.
-                      </p>
-                      <div className="mt-3 overflow-hidden rounded-lg border border-app-border bg-white">
-                        <img
-                          src="/assets/agent-workpack/workpack.png"
-                          alt="AI Agent Work Packs Customer Summary"
-                          className="h-auto w-full"
-                        />
-                      </div>
-                    </div>
-
                     <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
                       Customer <strong className="text-slate-900">{selectedCustomer}</strong> has{' '}
                       <strong className="text-slate-900">{summary.totalRows.toLocaleString()}</strong> total rows and{' '}
@@ -1198,6 +1422,15 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Branded footer — Cacao */}
+              <div className="rounded-2xl overflow-hidden" style={{ background: '#3D3533' }}>
+                <div className="flex items-center justify-between px-8 py-5">
+                  <img src="/appzen-logo.png" alt="AppZen" style={{ height: '26px', width: 'auto' }} />
+                  <span style={{ color: '#746C60', fontSize: '0.75rem' }}>AI Agent Transformation Report · Confidential</span>
+                  <span style={{ color: '#746C60', fontSize: '0.75rem' }}>{new Date().getFullYear()} © AppZen</span>
+                </div>
+              </div>
             </div>
           </div>
         </>

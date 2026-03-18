@@ -85,6 +85,26 @@ export function normalizeWorkbookRows(rawRows: Record<string, unknown>[]): {
   return { rows, missingColumns };
 }
 
+/**
+ * Aggregate rows by their dimensional key (customer + model + expense type + category).
+ * Sums high-risk and returned line counts so large raw datasets (e.g. 70k+ rows) are
+ * collapsed to a much smaller set before being stored/transmitted.
+ */
+export function aggregateRows(rows: AgentModelRow[]): AgentModelRow[] {
+  const map = new Map<string, AgentModelRow>();
+  for (const row of rows) {
+    const key = `${row.customer_name}||${row.industry}||${row.sub_industry}||${row.model}||${row.appzen_expense_type}||${row.model_category}`;
+    const existing = map.get(key);
+    if (existing) {
+      existing.number_of_high_risk_line += row.number_of_high_risk_line;
+      existing.number_of_returned_line += row.number_of_returned_line;
+    } else {
+      map.set(key, { ...row });
+    }
+  }
+  return Array.from(map.values());
+}
+
 export function uniqueCustomerNames(rows: AgentModelRow[]): string[] {
   return [...new Set(rows.map((row) => row.customer_name).filter(Boolean))].sort((a, b) => a.localeCompare(b));
 }

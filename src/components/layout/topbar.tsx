@@ -3,6 +3,12 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Bell, ChevronDown, Menu, Sparkles } from 'lucide-react';
+
+function AppZenLogo() {
+  return (
+    <img src="/appzen-logo.png" alt="AppZen" style={{ height: '28px', width: 'auto' }} />
+  );
+}
 import { signOut } from 'next-auth/react';
 
 const titles: Record<string, { title: string; subtitle: string }> = {
@@ -34,7 +40,7 @@ export function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
           >
             <Menu className="h-4 w-4" />
           </button>
-          <div className="text-3xl font-semibold leading-none tracking-tight">appzen</div>
+          <AppZenLogo />
         </div>
         <div className="flex items-center gap-4">
           <Bell className="h-4 w-4 text-slate-100" />
