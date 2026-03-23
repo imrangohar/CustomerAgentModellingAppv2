@@ -42,6 +42,15 @@ export interface CustomerSummary {
   totalHighRisk: number;
 }
 
+export interface IndustrySummary {
+  industry: string;
+  subIndustries: string[];
+  avgHighRiskLinesPerCustomer: number;
+  customerCount: number;
+  totalHighRisk: number;
+  totalRows: number;
+}
+
 export interface ModelTotal {
   model: string;
   total: number;
@@ -109,6 +118,10 @@ export function uniqueCustomerNames(rows: AgentModelRow[]): string[] {
   return [...new Set(rows.map((row) => row.customer_name).filter(Boolean))].sort((a, b) => a.localeCompare(b));
 }
 
+export function uniqueIndustryNames(rows: AgentModelRow[]): string[] {
+  return [...new Set(rows.map((row) => row.industry).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+}
+
 function mode(values: string[]): string {
   const counts: Record<string, number> = {};
   values.forEach((value) => {
@@ -146,6 +159,22 @@ export function summarizeCustomer(rows: AgentModelRow[]): CustomerSummary {
     annualExpenseReportsMultiple: uniqueVolumes.length > 1,
     totalRows: rows.length,
     totalHighRisk: rows.reduce((sum, row) => sum + row.number_of_high_risk_line, 0),
+  };
+}
+
+export function summarizeIndustry(industryRows: AgentModelRow[]): IndustrySummary {
+  const industry = industryRows[0]?.industry || '';
+  const subIndustries = [...new Set(industryRows.map((r) => r.sub_industry).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const customerCount = new Set(industryRows.map((r) => r.customer_name).filter(Boolean)).size;
+  const totalHighRisk = industryRows.reduce((sum, r) => sum + r.number_of_high_risk_line, 0);
+  const avgHighRiskLinesPerCustomer = customerCount > 0 ? Math.round(totalHighRisk / customerCount) : 0;
+  return {
+    industry,
+    subIndustries,
+    avgHighRiskLinesPerCustomer,
+    customerCount,
+    totalHighRisk,
+    totalRows: industryRows.length,
   };
 }
 

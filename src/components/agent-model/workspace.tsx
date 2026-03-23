@@ -13,9 +13,11 @@ import {
   formatDateTime,
   normalizeWorkbookRows,
   summarizeCustomer,
+  summarizeIndustry,
+  uniqueCustomerNames,
+  uniqueIndustryNames,
   type AgentModelMetadata,
   type AgentModelRow,
-  uniqueCustomerNames,
 } from '@/lib/agentModel';
 
 export type AgentModelPanel = 'admin' | 'customers' | 'prospect';
@@ -71,8 +73,8 @@ const panelMeta: Record<AgentModelPanel, { label: string; subtitle: string }> = 
     subtitle: 'Customer-level model analytics, rankings, heatmaps, and ROI impact.',
   },
   prospect: {
-    label: 'Prospect',
-    subtitle: 'Prospect modelling area for future extension.',
+    label: 'Prospects',
+    subtitle: 'Industry-level model analytics, rankings, heatmaps, and ROI impact.',
   },
 };
 
@@ -204,6 +206,7 @@ function sliceCanvasForPages(canvas: HTMLCanvasElement, pagePixelHeight: number)
 
 export function AgentModelWorkspace({ panel }: { panel: AgentModelPanel }) {
   const reportExportRef = useRef<HTMLDivElement>(null);
+  const prospectExportRef = useRef<HTMLDivElement>(null);
 
   const [rows, setRows] = useState<AgentModelRow[]>([]);
   const [filename, setFilename] = useState<string>('');
@@ -218,6 +221,11 @@ export function AgentModelWorkspace({ panel }: { panel: AgentModelPanel }) {
   const [selectedCustomer, setSelectedCustomer] = useState('');
   const [customerOperationalAnswers, setCustomerOperationalAnswers] = useState<Record<string, CustomerOperationalAnswers>>({});
   const [exporting, setExporting] = useState(false);
+
+  const [industrySearch, setIndustrySearch] = useState('');
+  const [selectedIndustry, setSelectedIndustry] = useState('');
+  const [industryOperationalAnswers, setIndustryOperationalAnswers] = useState<Record<string, CustomerOperationalAnswers>>({});
+  const [prospectExporting, setProspectExporting] = useState(false);
 
   const [timeMinutes, setTimeMinutes] = useState(2);
   const [creditsPerAction, setCreditsPerAction] = useState(1);
@@ -330,6 +338,101 @@ export function AgentModelWorkspace({ panel }: { panel: AgentModelPanel }) {
     return groups;
   }, [exportHeatmapExpenseTypes]);
 
+  // ── Industry / Prospect tab memos ─────────────────────────────────────────
+  const industries = useMemo(() => uniqueIndustryNames(rows), [rows]);
+  const filteredIndustries = useMemo(() => {
+    const q = industrySearch.trim().toLowerCase();
+    if (!q) return industries;
+    return industries.filter((ind) => ind.toLowerCase().includes(q));
+  }, [industries, industrySearch]);
+
+  const industryRows = useMemo(() => {
+    if (!selectedIndustry) return [];
+    return rows.filter((row) => row.industry === selectedIndustry);
+  }, [rows, selectedIndustry]);
+
+  const industryStdRows = useMemo(
+    () => industryRows.filter((row) => row.model_category.toLowerCase() === 'standard model'),
+    [industryRows]
+  );
+
+  const selectedIndustryOperationalAnswers: CustomerOperationalAnswers = selectedIndustry
+    ? (industryOperationalAnswers[selectedIndustry] ?? { auditorCount: '', reimbursementCycleTime: '', reimbursementCycleTimeCustom: '' })
+    : { auditorCount: '', reimbursementCycleTime: '', reimbursementCycleTimeCustom: '' };
+
+  const industrySummary = useMemo(() => summarizeIndustry(industryRows), [industryRows]);
+
+  const industryAllModels = useMemo(() => computeModelTotals(industryStdRows), [industryStdRows]);
+  const industryTop5 = useMemo(() => industryAllModels.slice(0, 5), [industryAllModels]);
+  const industryTop5TotalHighRisk = useMemo(() => industryTop5.reduce((sum, item) => sum + item.total, 0), [industryTop5]);
+  const industryTop5MaxTotal = useMemo(() => Math.max(...industryTop5.map((item) => item.total), 1), [industryTop5]);
+  const industryStdTotalHighRisk = useMemo(
+    () => industryStdRows.reduce((sum, r) => sum + r.number_of_high_risk_line, 0),
+    [industryStdRows]
+  );
+
+  const industryRoi = useMemo(() => {
+    if (!industryTop5TotalHighRisk) return null;
+    const timeSavedMins = industryTop5TotalHighRisk * timeMinutes;
+    const timeSavedHours = timeSavedMins / 60;
+    const fteEquivalent = timeSavedHours / 1920;
+    const fteSavings = fteEquivalent * fteCost;
+    const creditConsumption = industryTop5TotalHighRisk * creditsPerAction;
+    const displayTime =
+      timeSavedHours >= 24
+        ? `${(timeSavedHours / 24).toLocaleString(undefined, { maximumFractionDigits: 1 })} days`
+        : `${timeSavedHours.toLocaleString(undefined, { maximumFractionDigits: 1 })} hrs`;
+    return { displayTime, timeSavedMins, fteEquivalent, fteSavings, creditConsumption };
+  }, [industryTop5TotalHighRisk, timeMinutes, fteCost, creditsPerAction]);
+
+  const industryMaxHeat = useMemo(() => {
+    const max = industryStdRows.reduce((acc, row) => Math.max(acc, row.number_of_high_risk_line), 0);
+    return Math.max(max, 1);
+  }, [industryStdRows]);
+
+  const industryHeatmap = useMemo(() => {
+    if (!industryStdRows.length) return null;
+    const models = [...new Set(industryStdRows.map((row) => row.model))].sort((a, b) => a.localeCompare(b));
+    const expenseTypes = [...new Set(industryStdRows.map((row) => row.appzen_expense_type))];
+    const matrix: Record<string, Record<string, number>> = {};
+    models.forEach((model) => {
+      matrix[model] = {};
+      expenseTypes.forEach((expense) => { matrix[model][expense] = 0; });
+    });
+    industryStdRows.forEach((row) => {
+      matrix[row.model][row.appzen_expense_type] += row.number_of_high_risk_line;
+    });
+    const totalsByExpense: Record<string, number> = {};
+    expenseTypes.forEach((expense) => {
+      totalsByExpense[expense] = models.reduce((sum, model) => sum + matrix[model][expense], 0);
+    });
+    const sortedExpenseTypes = [...expenseTypes].sort(
+      (a, b) => totalsByExpense[b] - totalsByExpense[a] || a.localeCompare(b)
+    );
+    return { models, expenseTypes: sortedExpenseTypes, matrix };
+  }, [industryStdRows]);
+
+  const industryExportHeatmapExpenseTypes = useMemo(() => {
+    if (!industryHeatmap) return [] as string[];
+    const trimmed = [...industryHeatmap.expenseTypes];
+    while (trimmed.length > 1) {
+      const last = trimmed[trimmed.length - 1];
+      const maxInColumn = industryHeatmap.models.reduce((max, model) => Math.max(max, industryHeatmap.matrix[model][last] || 0), 0);
+      if (maxInColumn >= 10) break;
+      trimmed.pop();
+    }
+    return trimmed;
+  }, [industryHeatmap]);
+
+  const industryExportHeatmapColumnGroups = useMemo(() => {
+    if (!industryExportHeatmapExpenseTypes.length) return [] as string[][];
+    const groups: string[][] = [];
+    for (let i = 0; i < industryExportHeatmapExpenseTypes.length; i += 10) {
+      groups.push(industryExportHeatmapExpenseTypes.slice(i, i + 10));
+    }
+    return groups;
+  }, [industryExportHeatmapExpenseTypes]);
+
   useEffect(() => {
     void fetchSharedMetadata();
   }, []);
@@ -367,16 +470,19 @@ export function AgentModelWorkspace({ panel }: { panel: AgentModelPanel }) {
 
   function hydrateFromMetadata(metadata: AgentModelMetadata, storageSource: 'kv' | 'memory' | 'none') {
     const nextCustomers = uniqueCustomerNames(metadata.rows);
+    const nextIndustries = uniqueIndustryNames(metadata.rows);
     setRows(metadata.rows);
     setFilename(metadata.filename);
     setSheetName(metadata.sheetName);
     setSavedAt(metadata.savedAt);
     setSource(storageSource);
 
-    if (selectedCustomer && nextCustomers.includes(selectedCustomer)) {
-      return;
+    if (!selectedCustomer || !nextCustomers.includes(selectedCustomer)) {
+      setSelectedCustomer(nextCustomers[0] || '');
     }
-    setSelectedCustomer(nextCustomers[0] || '');
+    if (!selectedIndustry || !nextIndustries.includes(selectedIndustry)) {
+      setSelectedIndustry(nextIndustries[0] || '');
+    }
   }
 
   async function handleUpload(file: File) {
@@ -478,6 +584,9 @@ export function AgentModelWorkspace({ panel }: { panel: AgentModelPanel }) {
       setSearch('');
       setSelectedCustomer('');
       setCustomerOperationalAnswers({});
+      setIndustrySearch('');
+      setSelectedIndustry('');
+      setIndustryOperationalAnswers({});
       setNotice({ kind: 'info', message: 'Metadata cleared.' });
     } catch {
       setNotice({ kind: 'error', message: 'Unable to clear metadata right now.' });
@@ -573,6 +682,89 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
       setNotice({ kind: 'error', message: 'PDF export failed. Please try again.' });
     } finally {
       setExporting(false);
+    }
+  }
+
+  async function captureProspectReportPages() {
+    if (!prospectExportRef.current) return null;
+    const html2canvas = await loadHtml2Canvas();
+    if (!html2canvas) return null;
+    await waitForImages(prospectExportRef.current);
+    const canvas = await html2canvas(prospectExportRef.current, {
+      scale: 2,
+      backgroundColor: '#f5f6f8',
+      useCORS: true,
+      width: prospectExportRef.current.scrollWidth,
+      height: prospectExportRef.current.scrollHeight,
+      windowWidth: prospectExportRef.current.scrollWidth,
+      windowHeight: prospectExportRef.current.scrollHeight,
+      scrollX: 0,
+      scrollY: 0,
+    });
+    const pdfPageWidthPts = 595.28 - 40;
+    const pdfPageHeightPts = 841.89 - 40;
+    const pixelsPerPt = canvas.width / pdfPageWidthPts;
+    const pagePixelHeight = Math.floor(pdfPageHeightPts * pixelsPerPt);
+    const pageImages = sliceCanvasForPages(canvas, pagePixelHeight);
+    return { pageImages, pdfPageWidthPts, pdfPageHeightPts };
+  }
+
+  async function downloadProspectWordReport() {
+    if (!selectedIndustry) return;
+    setProspectExporting(true);
+    try {
+      const report = await captureProspectReportPages();
+      if (!report) {
+        setNotice({ kind: 'error', message: 'Unable to render report for Word export.' });
+        return;
+      }
+      const html = `<!doctype html>
+<html><head><meta charset="utf-8" />
+<style>
+  @page { size: A4; margin: 0.5in; }
+  body { font-family: "Segoe UI", Arial, sans-serif; background: #ffffff; }
+  .page { page-break-after: always; margin: 0; padding: 0; }
+  .page:last-child { page-break-after: auto; }
+  img { width: 100%; height: auto; display: block; border: 1px solid #dbe3ef; }
+</style>
+</head><body>
+${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`).join('')}
+</body></html>`;
+      const blob = new Blob([html], { type: 'application/msword' });
+      downloadBlob(`industry-analysis-${selectedIndustry.replaceAll(' ', '-').toLowerCase()}.doc`, blob);
+      setNotice({ kind: 'success', message: 'Word report downloaded.' });
+    } catch {
+      setNotice({ kind: 'error', message: 'Word export failed. Please try again.' });
+    } finally {
+      setProspectExporting(false);
+    }
+  }
+
+  async function downloadProspectPdfReport() {
+    if (!selectedIndustry) return;
+    setProspectExporting(true);
+    try {
+      const JsPDF = await loadJsPdf();
+      if (!JsPDF) {
+        setNotice({ kind: 'error', message: 'PDF library could not be loaded. Please try again.' });
+        return;
+      }
+      const report = await captureProspectReportPages();
+      if (!report) {
+        setNotice({ kind: 'error', message: 'Unable to render report for PDF export.' });
+        return;
+      }
+      const doc = new JsPDF({ unit: 'pt', format: 'a4' });
+      report.pageImages.forEach((pageImage, index) => {
+        if (index > 0) doc.addPage();
+        doc.addImage(pageImage, 'PNG', 20, 20, report.pdfPageWidthPts, report.pdfPageHeightPts);
+      });
+      doc.save(`industry-analysis-${selectedIndustry.replaceAll(' ', '-').toLowerCase()}.pdf`);
+      setNotice({ kind: 'success', message: 'PDF report downloaded.' });
+    } catch {
+      setNotice({ kind: 'error', message: 'PDF export failed. Please try again.' });
+    } finally {
+      setProspectExporting(false);
     }
   }
 
@@ -1437,17 +1629,737 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
       )}
 
       {panel === 'prospect' && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Prospect Workspace</CardTitle>
-            <CardDescription>Reserved area for prospect modelling workflows.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-6 text-sm text-slate-600">
-              Prospect workspace placeholder. Add prospect-specific modelling workflows here while keeping customer analytics and ROI flows under the Customers section.
+        <>
+          <div className="grid gap-4 lg:grid-cols-2">
+            {/* Select Industry */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Select Industry</CardTitle>
+                <CardDescription>Use the shared metadata uploaded in Admin.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Input
+                  placeholder="Search industries..."
+                  value={industrySearch}
+                  onChange={(event) => setIndustrySearch(event.target.value)}
+                  disabled={industries.length === 0}
+                />
+                <select
+                  className="h-10 w-full rounded-md border border-app-border bg-white px-3 text-sm"
+                  value={selectedIndustry}
+                  disabled={filteredIndustries.length === 0}
+                  onChange={(event) => setSelectedIndustry(event.target.value)}
+                >
+                  <option value="">{rows.length ? 'Select an industry' : 'Upload metadata in Admin first'}</option>
+                  {filteredIndustries.map((ind) => (
+                    <option key={ind} value={ind}>{ind}</option>
+                  ))}
+                </select>
+              </CardContent>
+            </Card>
+
+            {/* Industry Details */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Industry Details</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {selectedIndustry ? (
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                      <span className="text-slate-500">Industry</span>
+                      <span className="font-semibold text-slate-900">{industrySummary.industry}</span>
+                    </div>
+                    <div className="border-b border-slate-200 pb-2">
+                      <span className="text-slate-500">Sub-Industries</span>
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {industrySummary.subIndustries.map((sub) => (
+                          <span key={sub} className="inline-flex rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-xs text-slate-700">{sub}</span>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-2 pt-1">
+                      <span className="text-slate-500">Avg High-Risk Lines (per customer)</span>
+                      <span className="font-semibold text-slate-900">{industrySummary.avgHighRiskLinesPerCustomer.toLocaleString()}</span>
+                    </div>
+                    <div className="flex items-center justify-between pt-1">
+                      <span className="text-slate-500">Number of Customers</span>
+                      <span className="font-semibold text-slate-900">{industrySummary.customerCount.toLocaleString()}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-500">Select an industry to view details.</p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Customer Operating Inputs */}
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <CardTitle>Customer Operating Inputs</CardTitle>
+                <CardDescription>Capture operating assumptions for the selected industry.</CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700">Number of auditors processing and auditing expense reports</label>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        step={1}
+                        disabled={!selectedIndustry}
+                        value={Math.min(Number(selectedIndustryOperationalAnswers.auditorCount) || 0, 100)}
+                        onChange={(e) => {
+                          if (!selectedIndustry) return;
+                          setIndustryOperationalAnswers((prev) => ({
+                            ...prev,
+                            [selectedIndustry]: {
+                              ...(prev[selectedIndustry] ?? { auditorCount: '', reimbursementCycleTime: '', reimbursementCycleTimeCustom: '' }),
+                              auditorCount: e.target.value,
+                            },
+                          }));
+                        }}
+                        className="w-full accent-violet-600 disabled:opacity-40"
+                      />
+                      <span className="w-8 text-right text-sm font-semibold text-slate-700">
+                        {Number(selectedIndustryOperationalAnswers.auditorCount) || 0}
+                      </span>
+                    </div>
+                    {Number(selectedIndustryOperationalAnswers.auditorCount) >= 100 && (
+                      <Input
+                        type="number"
+                        min={100}
+                        placeholder="Enter exact number of auditors"
+                        disabled={!selectedIndustry}
+                        value={selectedIndustryOperationalAnswers.auditorCount}
+                        onChange={(e) => {
+                          if (!selectedIndustry) return;
+                          setIndustryOperationalAnswers((prev) => ({
+                            ...prev,
+                            [selectedIndustry]: {
+                              ...(prev[selectedIndustry] ?? { auditorCount: '', reimbursementCycleTime: '', reimbursementCycleTimeCustom: '' }),
+                              auditorCount: e.target.value,
+                            },
+                          }));
+                        }}
+                      />
+                    )}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700">Auditor Decision Cycle Time</label>
+                  <select
+                    className="h-10 w-full rounded-md border border-app-border bg-white px-3 text-sm disabled:bg-slate-50"
+                    disabled={!selectedIndustry}
+                    value={selectedIndustryOperationalAnswers.reimbursementCycleTime}
+                    onChange={(event) => {
+                      if (!selectedIndustry) return;
+                      const nextValue = event.target.value as CustomerOperationalAnswers['reimbursementCycleTime'];
+                      setIndustryOperationalAnswers((prev) => ({
+                        ...prev,
+                        [selectedIndustry]: {
+                          ...(prev[selectedIndustry] ?? { auditorCount: '', reimbursementCycleTime: '', reimbursementCycleTimeCustom: '' }),
+                          reimbursementCycleTime: nextValue,
+                          reimbursementCycleTimeCustom: nextValue !== 'other' ? '' : (prev[selectedIndustry]?.reimbursementCycleTimeCustom ?? ''),
+                        },
+                      }));
+                    }}
+                  >
+                    <option value="">{selectedIndustry ? 'Select cycle time' : 'Select an industry first'}</option>
+                    <option value="5 mins">5 mins</option>
+                    <option value="10 mins">10 mins</option>
+                    <option value="15 mins">15 mins</option>
+                    <option value="30 mins">30 mins</option>
+                    <option value="60 mins">60 mins</option>
+                    <option value="other">Other</option>
+                  </select>
+                  {selectedIndustryOperationalAnswers.reimbursementCycleTime === 'other' && (
+                    <Input
+                      placeholder="Enter custom cycle time"
+                      disabled={!selectedIndustry}
+                      value={selectedIndustryOperationalAnswers.reimbursementCycleTimeCustom}
+                      onChange={(e) => {
+                        if (!selectedIndustry) return;
+                        setIndustryOperationalAnswers((prev) => ({
+                          ...prev,
+                          [selectedIndustry]: {
+                            ...(prev[selectedIndustry] ?? { auditorCount: '', reimbursementCycleTime: '', reimbursementCycleTimeCustom: '' }),
+                            reimbursementCycleTimeCustom: e.target.value,
+                          },
+                        }));
+                      }}
+                    />
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Top Models by High-Risk Lines */}
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <CardTitle>Top Models by High-Risk Lines</CardTitle>
+                <CardDescription>Ranking, performance metrics, and model distribution for the selected industry (standard models).</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {!selectedIndustry ? (
+                  <p className="text-sm text-slate-500">Select an industry to see top model analytics.</p>
+                ) : industryTop5TotalHighRisk === 0 ? (
+                  <p className="text-sm text-slate-500">No high-risk lines found for this industry.</p>
+                ) : (
+                  <div className="space-y-5">
+                    <div className="overflow-x-auto rounded-xl border border-app-border">
+                      <table className="w-full min-w-[700px] text-sm">
+                        <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                          <tr>
+                            <th className="px-3 py-2 text-left">Rank</th>
+                            <th className="px-3 py-2 text-left">Model</th>
+                            <th className="px-3 py-2 text-left">Total High-Risk Lines</th>
+                            <th className="px-3 py-2 text-left">Total Returned Lines</th>
+                            <th className="px-3 py-2 text-left">Distribution</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {industryTop5.map((item, index) => {
+                            const highRiskPct = (item.total / industryTop5MaxTotal) * 100;
+                            const returnedWithinPct = item.total > 0 ? (item.returned / item.total) * 100 : 0;
+                            return (
+                              <tr key={item.model} className="border-t border-slate-100">
+                                <td className="px-3 py-2">
+                                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold">{index + 1}</span>
+                                </td>
+                                <td className="px-3 py-2 font-medium text-slate-900">{item.model}</td>
+                                <td className="px-3 py-2">{item.total.toLocaleString()}</td>
+                                <td className="px-3 py-2">{item.returned.toLocaleString()}</td>
+                                <td className="px-3 py-2">
+                                  <div className="relative h-3 w-32 overflow-hidden rounded bg-slate-100">
+                                    <div className="absolute inset-y-0 left-0 rounded bg-slate-300" style={{ width: `${highRiskPct.toFixed(1)}%` }} />
+                                    <div className="absolute inset-y-0 left-0 rounded bg-slate-600" style={{ width: `${(highRiskPct * returnedWithinPct / 100).toFixed(1)}%` }} />
+                                  </div>
+                                  <p className="mt-0.5 text-[10px] text-slate-400">{returnedWithinPct.toFixed(1)}% returned</p>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="overflow-x-auto rounded-xl border border-app-border">
+                      <table className="w-full min-w-[760px] text-sm">
+                        <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                          <tr>
+                            <th className="px-3 py-2 text-left">Rank</th>
+                            <th className="px-3 py-2 text-left">Model</th>
+                            <th className="px-3 py-2 text-left">Automation Impact</th>
+                            <th className="px-3 py-2 text-left">Rejection Rate</th>
+                            <th className="px-3 py-2 text-left">Approval Rate</th>
+                            <th className="px-3 py-2 text-left">Distribution</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {industryTop5.map((item, index) => {
+                            const autoImpact = industryStdTotalHighRisk ? ((item.total / industryStdTotalHighRisk) * 100).toFixed(1) : '0.0';
+                            const rejectionRate = item.total ? ((item.returned / item.total) * 100).toFixed(1) : '0.0';
+                            const approvalRate = item.total ? (((item.total - item.returned) / item.total) * 100).toFixed(1) : '0.0';
+                            const rejectionBarPct = item.total > 0 ? (item.returned / item.total) * 100 : 0;
+                            return (
+                              <tr key={`ind-perf-${item.model}`} className="border-t border-slate-100">
+                                <td className="px-3 py-2">{index + 1}</td>
+                                <td className="px-3 py-2 font-medium text-slate-900">{item.model}</td>
+                                <td className="px-3 py-2">{autoImpact}%</td>
+                                <td className="px-3 py-2">{rejectionRate}%</td>
+                                <td className="px-3 py-2">{approvalRate}%</td>
+                                <td className="px-3 py-2">
+                                  <div className="relative h-3 w-32 overflow-hidden rounded bg-slate-100">
+                                    <div className="absolute inset-y-0 left-0 rounded bg-emerald-400" style={{ width: `${(100 - rejectionBarPct).toFixed(1)}%` }} />
+                                    <div className="absolute inset-y-0 right-0 rounded bg-red-300" style={{ width: `${rejectionBarPct.toFixed(1)}%` }} />
+                                  </div>
+                                  <p className="mt-0.5 text-[10px] text-slate-400">{(100 - rejectionBarPct).toFixed(1)}% approved</p>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div>
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">High-Risk Lines Heatmap · Model vs Expense Type</p>
+                      {industryHeatmap ? (
+                        <div className="overflow-x-auto rounded-xl border border-app-border">
+                          <table className="w-full min-w-[760px] text-xs">
+                            <thead className="bg-slate-50 uppercase tracking-wide text-slate-500">
+                              <tr>
+                                <th className="px-3 py-2 text-left">Model</th>
+                                {industryHeatmap.expenseTypes.map((expense) => (
+                                  <th key={expense} className="px-3 py-2 text-center">
+                                    {expense.length > 16 ? `${expense.slice(0, 15)}...` : expense}
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {industryHeatmap.models.map((model) => (
+                                <tr key={`ind-heat-${model}`} className="border-t border-slate-100">
+                                  <td className="bg-slate-50 px-3 py-2 font-medium text-slate-700">{model}</td>
+                                  {industryHeatmap.expenseTypes.map((expense) => {
+                                    const value = industryHeatmap.matrix[model][expense];
+                                    const style = heatColor(value, industryMaxHeat);
+                                    return (
+                                      <td key={`${model}-${expense}`} className="px-3 py-2 text-center font-semibold" style={style}>
+                                        {value ? value.toLocaleString() : '–'}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-slate-500">No standard models found for this industry.</p>
+                      )}
+                    </div>
+
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                      Industry <strong className="text-slate-900">{selectedIndustry}</strong> has{' '}
+                      <strong className="text-slate-900">{industrySummary.customerCount.toLocaleString()}</strong> customers and{' '}
+                      <strong className="text-slate-900">{industrySummary.totalHighRisk.toLocaleString()}</strong> high-risk lines.
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* ROI Impact Calculator */}
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <CardTitle>ROI Impact Calculator</CardTitle>
+                <CardDescription>Adjust assumptions to estimate operational impact for top high-risk model lines.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <div className="grid gap-3 md:grid-cols-3">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Time Saved per High-Risk Line</p>
+                    <p className="mb-2 text-xs text-slate-500">Minutes per line</p>
+                    <input type="range" min={1} max={30} step={1} value={timeMinutes} onChange={(e) => setTimeMinutes(Number(e.target.value))} className="w-full" />
+                    <p className="mt-1 text-right text-sm font-semibold text-slate-700">{timeMinutes} min</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Agent Credit Consumption</p>
+                    <p className="mb-2 text-xs text-slate-500">Credits per action</p>
+                    <input type="range" min={1} max={20} step={1} value={creditsPerAction} onChange={(e) => setCreditsPerAction(Number(e.target.value))} className="w-full" />
+                    <p className="mt-1 text-right text-sm font-semibold text-slate-700">{creditsPerAction} cr</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">FTE Fully Loaded Cost</p>
+                    <p className="mb-2 text-xs text-slate-500">USD per year</p>
+                    <input type="range" min={20000} max={200000} step={1000} value={fteCost} onChange={(e) => setFteCost(Number(e.target.value))} className="w-full" />
+                    <p className="mt-1 text-right text-sm font-semibold text-slate-700">${fteCost.toLocaleString()}</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Cost per Credit</p>
+                    <p className="mb-2 text-xs text-slate-500">USD per credit</p>
+                    <input type="range" min={0.01} max={2.00} step={0.01} value={costPerCredit} onChange={(e) => setCostPerCredit(Number(e.target.value))} className="w-full" />
+                    <p className="mt-1 text-right text-sm font-semibold text-slate-700">${costPerCredit.toFixed(2)}</p>
+                  </div>
+                </div>
+
+                {industryRoi ? (
+                  <div className="grid gap-3 md:grid-cols-5">
+                    <div className="rounded-xl bg-slate-900 px-4 py-4 text-center text-white">
+                      <p className="text-xs uppercase tracking-wide text-slate-300">Auditor Time Saved</p>
+                      <p className="mt-1 text-xl font-semibold">{industryRoi.displayTime}</p>
+                      <p className="mt-1 text-xs text-slate-400">{industryRoi.timeSavedMins.toLocaleString()} minutes total</p>
+                    </div>
+                    <div className="rounded-xl bg-slate-900 px-4 py-4 text-center text-white">
+                      <p className="text-xs uppercase tracking-wide text-slate-300">FTE Equivalent</p>
+                      <p className="mt-1 text-xl font-semibold">{industryRoi.fteEquivalent.toFixed(2)}</p>
+                      <p className="mt-1 text-xs text-slate-400">1,920 hrs / FTE / year</p>
+                    </div>
+                    <div className="rounded-xl bg-slate-900 px-4 py-4 text-center text-white">
+                      <p className="text-xs uppercase tracking-wide text-slate-300">FTE Savings</p>
+                      <p className="mt-1 text-xl font-semibold">${Math.round(industryRoi.fteSavings).toLocaleString()}</p>
+                      <p className="mt-1 text-xs text-slate-400">at ${fteCost.toLocaleString()} loaded cost</p>
+                    </div>
+                    <div className="rounded-xl bg-slate-900 px-4 py-4 text-center text-white">
+                      <p className="text-xs uppercase tracking-wide text-slate-300">Credit Consumption</p>
+                      <p className="mt-1 text-xl font-semibold">{industryRoi.creditConsumption.toLocaleString()}</p>
+                      <p className="mt-1 text-xs text-slate-400">{creditsPerAction} credits per action</p>
+                    </div>
+                    <div className="rounded-xl bg-slate-900 px-4 py-4 text-center text-white">
+                      <p className="text-xs uppercase tracking-wide text-slate-300">Cost of Credit</p>
+                      <p className="mt-1 text-xl font-semibold">${(industryRoi.creditConsumption * costPerCredit).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                      <p className="mt-1 text-xs text-slate-400">${costPerCredit.toFixed(2)} per credit</p>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-500">Select an industry to see ROI metrics.</p>
+                )}
+
+                {industryRoi && (() => {
+                  const roiValue = industryRoi.fteSavings - (industryRoi.creditConsumption * costPerCredit);
+                  const roiPositive = roiValue >= 0;
+                  return (
+                    <div className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm font-medium ${roiPositive ? 'border-green-200 bg-green-50 text-green-800' : 'border-red-200 bg-red-50 text-red-800'}`}>
+                      <span className="mt-0.5 text-base">{roiPositive ? '✓' : '✗'}</span>
+                      <span>
+                        Return on Investment: <strong>${Math.abs(Math.round(roiValue)).toLocaleString()}</strong> {roiPositive ? 'net gain' : 'net cost'}.
+                        {' '}FTE Savings Cost (${Math.round(industryRoi.fteSavings).toLocaleString()}) − Cost of Credits (${Math.round(industryRoi.creditConsumption * costPerCredit).toLocaleString()}).
+                        {' '}{roiPositive ? 'Automation delivers a positive return.' : 'Credit costs currently exceed FTE savings.'}
+                      </span>
+                    </div>
+                  );
+                })()}
+
+                {industryRoi && selectedIndustryOperationalAnswers.auditorCount !== '' && (() => {
+                  const auditors = Number(selectedIndustryOperationalAnswers.auditorCount);
+                  const fteDelta = auditors - industryRoi.fteEquivalent;
+                  const isPositive = fteDelta >= 0;
+                  return (
+                    <div className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm font-medium ${isPositive ? 'border-green-200 bg-green-50 text-green-800' : 'border-red-200 bg-red-50 text-red-800'}`}>
+                      <span className="mt-0.5 text-base">{isPositive ? '✓' : '✗'}</span>
+                      <span>
+                        FTE headcount required: <strong>{fteDelta.toFixed(2)} FTE</strong>
+                        {' '}({auditors} auditors entered − {industryRoi.fteEquivalent.toFixed(2)} FTE equivalent).
+                        {' '}{isPositive ? 'Automation covers the equivalent of these auditors, freeing capacity.' : 'Automation does not yet cover the full auditor headcount — additional efficiency gains needed.'}
+                      </span>
+                    </div>
+                  );
+                })()}
+
+                {industryRoi && selectedIndustryOperationalAnswers.reimbursementCycleTime && (
+                  <div className="flex items-start gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-800">
+                    <span className="mt-0.5 text-base">✓</span>
+                    <span>
+                      Decision Cycle Time Compression: auditor cycle time reduced from{' '}
+                      <strong>
+                        {selectedIndustryOperationalAnswers.reimbursementCycleTime === 'other'
+                          ? (selectedIndustryOperationalAnswers.reimbursementCycleTimeCustom || 'custom')
+                          : selectedIndustryOperationalAnswers.reimbursementCycleTime}
+                      </strong>{' '}
+                      to <strong>1–2 mins with Agents</strong>.
+                    </span>
+                  </div>
+                )}
+
+                <div className="flex flex-wrap gap-2 border-t border-slate-200 pt-3">
+                  <Button variant="secondary" onClick={() => void downloadProspectPdfReport()} disabled={!selectedIndustry || prospectExporting}>
+                    <Download className="h-4 w-4" />
+                    Download PDF
+                  </Button>
+                  <Button variant="secondary" onClick={() => void downloadProspectWordReport()} disabled={!selectedIndustry || prospectExporting}>
+                    <Download className="h-4 w-4" />
+                    Download Word
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Hidden prospect export template */}
+          <div className="pointer-events-none fixed -left-[100000px] top-0 z-[-1] w-[1200px] p-8" style={{ background: '#F7F6F2', fontFamily: "'Manrope', Arial, sans-serif" }} aria-hidden="true">
+            <div ref={prospectExportRef} className="space-y-4">
+              {/* Branded header */}
+              <div className="rounded-2xl overflow-hidden" style={{ background: '#3D3533' }}>
+                <div className="px-8 pt-8 pb-5">
+                  <div className="flex items-center justify-between">
+                    <img src="/appzen-logo.png" alt="AppZen" style={{ height: '32px', width: 'auto' }} />
+                    <span style={{ color: '#B6B0A2', fontSize: '0.8rem' }}>{new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                  </div>
+                  <h1 className="mt-5" style={{ color: '#FEFDF9', fontSize: '2.25rem', fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.1 }}>AI Agent Transformation</h1>
+                  <p className="mt-1" style={{ color: '#FEF76C', fontSize: '1.25rem', fontWeight: 600 }}>Industry Analysis: {selectedIndustry || 'No industry selected'}</p>
+                </div>
+                <div style={{ height: '1px', background: 'rgba(254,253,249,0.15)' }} />
+                <div className="flex gap-8 px-8 py-4">
+                  {industrySummary.customerCount > 0 && <span style={{ color: '#B6B0A2', fontSize: '0.8rem' }}><span style={{ color: '#FEFDF9', fontWeight: 600 }}>Customers: </span>{industrySummary.customerCount}</span>}
+                  {industrySummary.totalHighRisk > 0 && <span style={{ color: '#B6B0A2', fontSize: '0.8rem' }}><span style={{ color: '#FEFDF9', fontWeight: 600 }}>High-Risk Lines: </span>{industrySummary.totalHighRisk.toLocaleString()}</span>}
+                  {industrySummary.subIndustries.length > 0 && <span style={{ color: '#B6B0A2', fontSize: '0.8rem' }}><span style={{ color: '#FEFDF9', fontWeight: 600 }}>Sub-Industries: </span>{industrySummary.subIndustries.join(', ')}</span>}
+                </div>
+              </div>
+
+              {/* ROI Card */}
+              <Card style={{ background: '#FEFDF9', border: '1px solid #E2DDD2' }}>
+                <CardHeader style={{ borderBottom: '1px solid #E2DDD2' }}>
+                  <CardTitle style={{ color: '#3D3533', fontFamily: "'Manrope', Arial, sans-serif" }}>ROI Impact Calculator</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {industryRoi ? (
+                    <div className="grid gap-3 grid-cols-5">
+                      <div className="rounded-xl px-4 py-4 text-center" style={{ background: '#3D3533' }}>
+                        <p className="text-xs uppercase tracking-wide font-semibold" style={{ color: '#FEF76C', letterSpacing: '0.08em' }}>Auditor Time Saved</p>
+                        <p className="mt-1 text-xl font-bold" style={{ color: '#FEFDF9' }}>{industryRoi.displayTime}</p>
+                        <p className="mt-1 text-xs" style={{ color: '#B6B0A2' }}>{industryRoi.timeSavedMins.toLocaleString()} minutes total</p>
+                      </div>
+                      <div className="rounded-xl px-4 py-4 text-center" style={{ background: '#3D3533' }}>
+                        <p className="text-xs uppercase tracking-wide font-semibold" style={{ color: '#FEF76C', letterSpacing: '0.08em' }}>FTE Equivalent</p>
+                        <p className="mt-1 text-xl font-bold" style={{ color: '#FEFDF9' }}>{industryRoi.fteEquivalent.toFixed(2)}</p>
+                        <p className="mt-1 text-xs" style={{ color: '#B6B0A2' }}>1,920 hrs / FTE / year</p>
+                      </div>
+                      <div className="rounded-xl px-4 py-4 text-center" style={{ background: '#3D3533' }}>
+                        <p className="text-xs uppercase tracking-wide font-semibold" style={{ color: '#FEF76C', letterSpacing: '0.08em' }}>FTE Savings</p>
+                        <p className="mt-1 text-xl font-bold" style={{ color: '#FEFDF9' }}>${Math.round(industryRoi.fteSavings).toLocaleString()}</p>
+                        <p className="mt-1 text-xs" style={{ color: '#B6B0A2' }}>at ${fteCost.toLocaleString()} loaded cost</p>
+                      </div>
+                      <div className="rounded-xl px-4 py-4 text-center" style={{ background: '#544D45' }}>
+                        <p className="text-xs uppercase tracking-wide font-semibold" style={{ color: '#E2DDD2', letterSpacing: '0.08em' }}>Credit Consumption</p>
+                        <p className="mt-1 text-xl font-bold" style={{ color: '#FEFDF9' }}>{industryRoi.creditConsumption.toLocaleString()}</p>
+                        <p className="mt-1 text-xs" style={{ color: '#B6B0A2' }}>{creditsPerAction} credits per action</p>
+                      </div>
+                      <div className="rounded-xl px-4 py-4 text-center" style={{ background: '#544D45' }}>
+                        <p className="text-xs uppercase tracking-wide font-semibold" style={{ color: '#E2DDD2', letterSpacing: '0.08em' }}>Cost of Credit</p>
+                        <p className="mt-1 text-xl font-bold" style={{ color: '#FEFDF9' }}>${(industryRoi.creditConsumption * costPerCredit).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                        <p className="mt-1 text-xs" style={{ color: '#B6B0A2' }}>${costPerCredit.toFixed(2)} per credit</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm" style={{ color: '#746C60' }}>Select an industry to see ROI metrics.</p>
+                  )}
+
+                  {industryRoi && (() => {
+                    const roiValue = industryRoi.fteSavings - (industryRoi.creditConsumption * costPerCredit);
+                    const roiPositive = roiValue >= 0;
+                    return (
+                      <div className="mt-3 flex items-start gap-3 rounded-lg px-4 py-3 text-sm font-medium" style={roiPositive
+                        ? { background: '#C5ECD0', border: '1px solid #0BDC4D', color: '#3D3533' }
+                        : { background: '#FCD6CF', border: '1px solid #F35F45', color: '#3D3533' }}>
+                        <span className="mt-0.5 text-base">{roiPositive ? '✓' : '✗'}</span>
+                        <span>
+                          Return on Investment: <strong>${Math.abs(Math.round(roiValue)).toLocaleString()}</strong> {roiPositive ? 'net gain' : 'net cost'}.
+                          {' '}FTE Savings Cost (${Math.round(industryRoi.fteSavings).toLocaleString()}) − Cost of Credits (${Math.round(industryRoi.creditConsumption * costPerCredit).toLocaleString()}).
+                          {' '}{roiPositive ? 'Automation delivers a positive return.' : 'Credit costs currently exceed FTE savings.'}
+                        </span>
+                      </div>
+                    );
+                  })()}
+
+                  {industryRoi && selectedIndustryOperationalAnswers.auditorCount !== '' && (() => {
+                    const auditors = Number(selectedIndustryOperationalAnswers.auditorCount);
+                    const fteDelta = auditors - industryRoi.fteEquivalent;
+                    const isPositive = fteDelta >= 0;
+                    return (
+                      <div className="mt-3 flex items-start gap-3 rounded-lg px-4 py-3 text-sm font-medium" style={isPositive
+                        ? { background: '#C5ECD0', border: '1px solid #0BDC4D', color: '#3D3533' }
+                        : { background: '#FCD6CF', border: '1px solid #F35F45', color: '#3D3533' }}>
+                        <span className="mt-0.5 text-base">{isPositive ? '✓' : '✗'}</span>
+                        <span>
+                          FTE headcount required: <strong>{fteDelta.toFixed(2)} FTE</strong>
+                          {' '}({auditors} auditors entered − {industryRoi.fteEquivalent.toFixed(2)} FTE equivalent).
+                          {' '}{isPositive ? 'Automation covers the equivalent of these auditors, freeing capacity.' : 'Automation does not yet cover the full auditor headcount — additional efficiency gains needed.'}
+                        </span>
+                      </div>
+                    );
+                  })()}
+
+                  {industryRoi && selectedIndustryOperationalAnswers.reimbursementCycleTime && (
+                    <div className="mt-3 flex items-start gap-3 rounded-lg px-4 py-3 text-sm font-medium" style={{ background: '#C5ECD0', border: '1px solid #0BDC4D', color: '#3D3533' }}>
+                      <span className="mt-0.5 text-base">✓</span>
+                      <span>
+                        Decision Cycle Time Compression: auditor cycle time reduced from{' '}
+                        <strong>
+                          {selectedIndustryOperationalAnswers.reimbursementCycleTime === 'other'
+                            ? (selectedIndustryOperationalAnswers.reimbursementCycleTimeCustom || 'custom')
+                            : selectedIndustryOperationalAnswers.reimbursementCycleTime}
+                        </strong>{' '}
+                        to <strong>1–2 mins with Agents</strong>.
+                      </span>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Industry Details export card */}
+              <Card style={{ background: '#FEFDF9', border: '1px solid #E2DDD2' }}>
+                <CardHeader style={{ borderBottom: '1px solid #E2DDD2' }}>
+                  <CardTitle style={{ color: '#3D3533', fontFamily: "'Manrope', Arial, sans-serif" }}>Industry Details</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                      <span className="text-slate-500">Industry</span>
+                      <span className="font-semibold text-slate-900">{industrySummary.industry}</span>
+                    </div>
+                    <div className="border-b border-slate-200 pb-2">
+                      <span className="text-slate-500">Sub-Industries</span>
+                      <p className="mt-1 font-semibold text-slate-900">{industrySummary.subIndustries.join(', ') || '—'}</p>
+                    </div>
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-2 pt-2">
+                      <span className="text-slate-500">Avg High-Risk Lines (per customer)</span>
+                      <span className="font-semibold text-slate-900">{industrySummary.avgHighRiskLinesPerCustomer.toLocaleString()}</span>
+                    </div>
+                    <div className="flex items-center justify-between pt-2">
+                      <span className="text-slate-500">Number of Customers</span>
+                      <span className="font-semibold text-slate-900">{industrySummary.customerCount.toLocaleString()}</span>
+                    </div>
+                    <div className="flex items-center justify-between border-t border-slate-200 pt-2">
+                      <span className="text-slate-500">Number of auditors</span>
+                      <span className="font-semibold text-slate-900">{selectedIndustryOperationalAnswers.auditorCount || 'Not specified'}</span>
+                    </div>
+                    <div className="flex items-center justify-between border-t border-slate-200 pt-2">
+                      <span className="text-slate-500">Auditor Decision Cycle Time</span>
+                      <span className="font-semibold text-slate-900">
+                        {selectedIndustryOperationalAnswers.reimbursementCycleTime === 'other'
+                          ? (selectedIndustryOperationalAnswers.reimbursementCycleTimeCustom || 'Other')
+                          : (selectedIndustryOperationalAnswers.reimbursementCycleTime || 'Not specified')}
+                      </span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Top Models export card */}
+              <Card style={{ background: '#FEFDF9', border: '1px solid #E2DDD2' }}>
+                <CardHeader style={{ borderBottom: '1px solid #E2DDD2' }}>
+                  <CardTitle style={{ color: '#3D3533', fontFamily: "'Manrope', Arial, sans-serif" }}>Top Models by High-Risk Lines</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-5">
+                    <div className="overflow-x-auto rounded-xl border border-app-border">
+                      <table className="w-full min-w-[700px] text-sm">
+                        <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                          <tr>
+                            <th className="px-3 py-2 text-left">Rank</th>
+                            <th className="px-3 py-2 text-left">Model</th>
+                            <th className="px-3 py-2 text-left">Total High-Risk Lines</th>
+                            <th className="px-3 py-2 text-left">Total Returned Lines</th>
+                            <th className="px-3 py-2 text-left">Distribution</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {industryTop5.map((item, index) => {
+                            const highRiskPct = (item.total / industryTop5MaxTotal) * 100;
+                            const returnedWithinPct = item.total > 0 ? (item.returned / item.total) * 100 : 0;
+                            return (
+                              <tr key={`pexp-top-${item.model}`} className="border-t border-slate-100">
+                                <td className="px-3 py-2">
+                                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold">{index + 1}</span>
+                                </td>
+                                <td className="px-3 py-2 font-medium text-slate-900">{item.model}</td>
+                                <td className="px-3 py-2">{item.total.toLocaleString()}</td>
+                                <td className="px-3 py-2">{item.returned.toLocaleString()}</td>
+                                <td className="px-3 py-2">
+                                  <div className="relative h-3 w-32 overflow-hidden rounded bg-slate-100">
+                                    <div className="absolute inset-y-0 left-0 rounded bg-slate-300" style={{ width: `${highRiskPct.toFixed(1)}%` }} />
+                                    <div className="absolute inset-y-0 left-0 rounded bg-slate-600" style={{ width: `${(highRiskPct * returnedWithinPct / 100).toFixed(1)}%` }} />
+                                  </div>
+                                  <p className="mt-0.5 text-[10px] text-slate-400">{returnedWithinPct.toFixed(1)}% returned</p>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="overflow-x-auto rounded-xl border border-app-border">
+                      <table className="w-full min-w-[760px] text-sm">
+                        <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                          <tr>
+                            <th className="px-3 py-2 text-left">Rank</th>
+                            <th className="px-3 py-2 text-left">Model</th>
+                            <th className="px-3 py-2 text-left">Automation Impact</th>
+                            <th className="px-3 py-2 text-left">Rejection Rate</th>
+                            <th className="px-3 py-2 text-left">Approval Rate</th>
+                            <th className="px-3 py-2 text-left">Distribution</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {industryTop5.map((item, index) => {
+                            const autoImpact = industryStdTotalHighRisk ? ((item.total / industryStdTotalHighRisk) * 100).toFixed(1) : '0.0';
+                            const rejectionRate = item.total ? ((item.returned / item.total) * 100).toFixed(1) : '0.0';
+                            const approvalRate = item.total ? (((item.total - item.returned) / item.total) * 100).toFixed(1) : '0.0';
+                            const rejectionBarPct = item.total > 0 ? (item.returned / item.total) * 100 : 0;
+                            return (
+                              <tr key={`pexp-perf-${item.model}`} className="border-t border-slate-100">
+                                <td className="px-3 py-2">{index + 1}</td>
+                                <td className="px-3 py-2 font-medium text-slate-900">{item.model}</td>
+                                <td className="px-3 py-2">{autoImpact}%</td>
+                                <td className="px-3 py-2">{rejectionRate}%</td>
+                                <td className="px-3 py-2">{approvalRate}%</td>
+                                <td className="px-3 py-2">
+                                  <div className="relative h-3 w-32 overflow-hidden rounded bg-slate-100">
+                                    <div className="absolute inset-y-0 left-0 rounded bg-emerald-400" style={{ width: `${(100 - rejectionBarPct).toFixed(1)}%` }} />
+                                    <div className="absolute inset-y-0 right-0 rounded bg-red-300" style={{ width: `${rejectionBarPct.toFixed(1)}%` }} />
+                                  </div>
+                                  <p className="mt-0.5 text-[10px] text-slate-400">{(100 - rejectionBarPct).toFixed(1)}% approved</p>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div>
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">High-Risk Lines Heatmap · Model vs Expense Type</p>
+                      {industryHeatmap ? (
+                        <div className="space-y-3">
+                          {industryExportHeatmapColumnGroups.map((group, groupIndex) => (
+                            <div key={`pexp-group-${groupIndex}`} className="rounded-xl border border-app-border">
+                              <div className="border-b border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                                {groupIndex === 0 ? 'Primary Heatmap View' : `Additional Heatmap Columns (Set ${groupIndex + 1})`}
+                              </div>
+                              <table className="w-full text-[11px]">
+                                <thead className="bg-slate-50 uppercase tracking-wide text-slate-500">
+                                  <tr>
+                                    <th className="px-2 py-2 text-left">Model</th>
+                                    {group.map((expense) => (
+                                      <th key={`pexp-${groupIndex}-${expense}`} className="px-2 py-2 text-center">
+                                        {expense.length > 14 ? `${expense.slice(0, 13)}...` : expense}
+                                      </th>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {industryHeatmap.models.map((model) => (
+                                    <tr key={`pexp-heat-${groupIndex}-${model}`} className="border-t border-slate-100">
+                                      <td className="bg-slate-50 px-2 py-2 font-medium text-slate-700">{model}</td>
+                                      {group.map((expense) => {
+                                        const value = industryHeatmap.matrix[model][expense];
+                                        const style = heatColor(value, industryMaxHeat);
+                                        return (
+                                          <td key={`pexp-${groupIndex}-${model}-${expense}`} className="px-2 py-2 text-center font-semibold" style={style}>
+                                            {value ? value.toLocaleString() : '-'}
+                                          </td>
+                                        );
+                                      })}
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          ))}
+                          <p className="text-xs text-slate-500">
+                            Export optimization: trailing low-signal columns (max value &lt; 10) are trimmed for readability.
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-slate-500">No standard models found for this industry.</p>
+                      )}
+                    </div>
+
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                      Industry <strong className="text-slate-900">{selectedIndustry}</strong> has{' '}
+                      <strong className="text-slate-900">{industrySummary.customerCount.toLocaleString()}</strong> customers and{' '}
+                      <strong className="text-slate-900">{industrySummary.totalHighRisk.toLocaleString()}</strong> high-risk lines.
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Branded footer */}
+              <div className="rounded-2xl overflow-hidden" style={{ background: '#3D3533' }}>
+                <div className="flex items-center justify-between px-8 py-5">
+                  <img src="/appzen-logo.png" alt="AppZen" style={{ height: '26px', width: 'auto' }} />
+                  <span style={{ color: '#746C60', fontSize: '0.75rem' }}>AI Agent Transformation Report · Confidential</span>
+                  <span style={{ color: '#746C60', fontSize: '0.75rem' }}>{new Date().getFullYear()} © AppZen</span>
+                </div>
+              </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </>
       )}
 
       {rows.length > 0 ? (
