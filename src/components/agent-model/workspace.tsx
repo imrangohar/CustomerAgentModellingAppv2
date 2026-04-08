@@ -31,7 +31,7 @@ interface ApiResponse {
 
 interface CustomerOperationalAnswers {
   auditorCount: string;
-  reimbursementCycleTime: '' | '5 mins' | '10 mins' | '15 mins' | '30 mins' | '60 mins' | 'other';
+  reimbursementCycleTime: '' | '1 Day' | '2 Days' | '4 Days' | '7 Days' | '14 Days' | 'other';
   reimbursementCycleTimeCustom: string;
 }
 
@@ -227,8 +227,13 @@ export function AgentModelWorkspace({ panel }: { panel: AgentModelPanel }) {
   const [industryOperationalAnswers, setIndustryOperationalAnswers] = useState<Record<string, CustomerOperationalAnswers>>({});
   const [prospectExporting, setProspectExporting] = useState(false);
 
-  const [timeMinutes, setTimeMinutes] = useState(2);
-  const [creditsPerAction, setCreditsPerAction] = useState(1);
+  const [roiVolumeMode, setRoiVolumeMode] = useState<'top5' | 'all' | 'single'>('top5');
+  const [roiSingleModel, setRoiSingleModel] = useState('');
+  const [industryRoiVolumeMode, setIndustryRoiVolumeMode] = useState<'top5' | 'all' | 'single'>('top5');
+  const [industryRoiSingleModel, setIndustryRoiSingleModel] = useState('');
+
+  const [timeMinutes, setTimeMinutes] = useState(3);
+  const [creditsPerAction, setCreditsPerAction] = useState(2);
   const [fteCost, setFteCost] = useState(35000);
   const [costPerCredit, setCostPerCredit] = useState(0.30);
 
@@ -256,13 +261,20 @@ export function AgentModelWorkspace({ panel }: { panel: AgentModelPanel }) {
   const top5MaxReturned = useMemo(() => Math.max(...top5.map((item) => item.returned), 1), [top5]);
 
   const roi = useMemo(() => {
-    if (!top5TotalHighRisk) return null;
+    let baseVolume: number;
+    if (roiVolumeMode === 'single') {
+      const match = top5.find((m) => m.model === roiSingleModel);
+      baseVolume = match ? match.total : 0;
+    } else {
+      baseVolume = roiVolumeMode === 'top5' ? top5TotalHighRisk : summary.totalHighRisk;
+    }
+    if (!baseVolume) return null;
 
-    const timeSavedMins = top5TotalHighRisk * timeMinutes;
+    const timeSavedMins = baseVolume * timeMinutes;
     const timeSavedHours = timeSavedMins / 60;
     const fteEquivalent = timeSavedHours / 1920;
     const fteSavings = fteEquivalent * fteCost;
-    const creditConsumption = top5TotalHighRisk * creditsPerAction;
+    const creditConsumption = baseVolume * creditsPerAction;
 
     const displayTime =
       timeSavedHours >= 24
@@ -276,7 +288,7 @@ export function AgentModelWorkspace({ panel }: { panel: AgentModelPanel }) {
       fteSavings,
       creditConsumption,
     };
-  }, [top5TotalHighRisk, timeMinutes, fteCost, creditsPerAction]);
+  }, [roiVolumeMode, roiSingleModel, top5, top5TotalHighRisk, summary.totalHighRisk, timeMinutes, fteCost, creditsPerAction]);
 
   const currentPanel = panelMeta[panel];
 
@@ -372,18 +384,25 @@ export function AgentModelWorkspace({ panel }: { panel: AgentModelPanel }) {
   );
 
   const industryRoi = useMemo(() => {
-    if (!industryTop5TotalHighRisk) return null;
-    const timeSavedMins = industryTop5TotalHighRisk * timeMinutes;
+    let baseVolume: number;
+    if (industryRoiVolumeMode === 'single') {
+      const match = industryTop5.find((m) => m.model === industryRoiSingleModel);
+      baseVolume = match ? match.total : 0;
+    } else {
+      baseVolume = industryRoiVolumeMode === 'top5' ? industryTop5TotalHighRisk : industrySummary.totalHighRisk;
+    }
+    if (!baseVolume) return null;
+    const timeSavedMins = baseVolume * timeMinutes;
     const timeSavedHours = timeSavedMins / 60;
     const fteEquivalent = timeSavedHours / 1920;
     const fteSavings = fteEquivalent * fteCost;
-    const creditConsumption = industryTop5TotalHighRisk * creditsPerAction;
+    const creditConsumption = baseVolume * creditsPerAction;
     const displayTime =
       timeSavedHours >= 24
         ? `${(timeSavedHours / 24).toLocaleString(undefined, { maximumFractionDigits: 1 })} days`
         : `${timeSavedHours.toLocaleString(undefined, { maximumFractionDigits: 1 })} hrs`;
     return { displayTime, timeSavedMins, fteEquivalent, fteSavings, creditConsumption };
-  }, [industryTop5TotalHighRisk, timeMinutes, fteCost, creditsPerAction]);
+  }, [industryRoiVolumeMode, industryRoiSingleModel, industryTop5, industryTop5TotalHighRisk, industrySummary.totalHighRisk, timeMinutes, fteCost, creditsPerAction]);
 
   const industryMaxHeat = useMemo(() => {
     const max = industryStdRows.reduce((acc, row) => Math.max(acc, row.number_of_high_risk_line), 0);
@@ -967,7 +986,7 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-700">Auditor Decision Cycle Time</label>
+                  <label className="text-sm font-medium text-slate-700">Expense Reimbursement Cycle Time</label>
                   <select
                     className="h-10 w-full rounded-md border border-app-border bg-white px-3 text-sm disabled:bg-slate-50"
                     disabled={!selectedCustomer}
@@ -986,11 +1005,11 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
                     }}
                   >
                     <option value="">{selectedCustomer ? 'Select cycle time' : 'Select a customer first'}</option>
-                    <option value="5 mins">5 mins</option>
-                    <option value="10 mins">10 mins</option>
-                    <option value="15 mins">15 mins</option>
-                    <option value="30 mins">30 mins</option>
-                    <option value="60 mins">60 mins</option>
+                    <option value="1 Day">1 Day</option>
+                    <option value="2 Days">2 Days</option>
+                    <option value="4 Days">4 Days</option>
+                    <option value="7 Days">7 Days</option>
+                    <option value="14 Days">14 Days</option>
                     <option value="other">Other</option>
                   </select>
                   {selectedOperationalAnswers.reimbursementCycleTime === 'other' && (
@@ -1158,6 +1177,81 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
                 <CardDescription>Adjust assumptions to estimate operational impact for top high-risk model lines.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
+                {/* Volume basis toggle */}
+                <div className="flex flex-col gap-1.5">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">High-Risk Volume Basis</p>
+                  <div className="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-1">
+                    <button
+                      type="button"
+                      onClick={() => setRoiVolumeMode('top5')}
+                      className={cn(
+                        'rounded-md px-4 py-1.5 text-xs font-semibold transition-colors',
+                        roiVolumeMode === 'top5'
+                          ? 'bg-white text-slate-900 shadow-sm'
+                          : 'text-slate-500 hover:text-slate-700'
+                      )}
+                    >
+                      Top 5 Models
+                      {top5TotalHighRisk > 0 && (
+                        <span className={cn('ml-1.5 rounded-full px-1.5 py-0.5 text-xs', roiVolumeMode === 'top5' ? 'bg-slate-100 text-slate-600' : 'bg-slate-200 text-slate-500')}>
+                          {top5TotalHighRisk.toLocaleString()}
+                        </span>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRoiVolumeMode('all')}
+                      className={cn(
+                        'rounded-md px-4 py-1.5 text-xs font-semibold transition-colors',
+                        roiVolumeMode === 'all'
+                          ? 'bg-white text-slate-900 shadow-sm'
+                          : 'text-slate-500 hover:text-slate-700'
+                      )}
+                    >
+                      All Models
+                      {summary.totalHighRisk > 0 && (
+                        <span className={cn('ml-1.5 rounded-full px-1.5 py-0.5 text-xs', roiVolumeMode === 'all' ? 'bg-slate-100 text-slate-600' : 'bg-slate-200 text-slate-500')}>
+                          {summary.totalHighRisk.toLocaleString()}
+                        </span>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setRoiVolumeMode('single'); if (!roiSingleModel && top5[0]) setRoiSingleModel(top5[0].model); }}
+                      className={cn(
+                        'rounded-md px-4 py-1.5 text-xs font-semibold transition-colors',
+                        roiVolumeMode === 'single'
+                          ? 'bg-white text-slate-900 shadow-sm'
+                          : 'text-slate-500 hover:text-slate-700'
+                      )}
+                    >
+                      Single Model
+                    </button>
+                  </div>
+                  {roiVolumeMode === 'single' && top5.length > 0 && (
+                    <select
+                      value={roiSingleModel}
+                      onChange={(e) => setRoiSingleModel(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
+                    >
+                      {top5.map((m) => (
+                        <option key={m.model} value={m.model}>
+                          {m.model} — {m.total.toLocaleString()} lines
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  <p className="text-xs text-slate-400">
+                    {roiVolumeMode === 'top5'
+                      ? 'Using top 5 models by high-risk line volume as the ROI basis.'
+                      : roiVolumeMode === 'all'
+                      ? 'Using total high-risk line volume across all models as the ROI basis.'
+                      : roiSingleModel
+                      ? `Using ${roiSingleModel} (${(top5.find((m) => m.model === roiSingleModel)?.total ?? 0).toLocaleString()} lines) as the ROI basis.`
+                      : 'Select a model from the list above.'}
+                  </p>
+                </div>
+
                 <div className="grid gap-3 md:grid-cols-3">
                   <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Time Saved per High-Risk Line</p>
@@ -1253,13 +1347,20 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
                   const roiValue = roi.fteSavings - (roi.creditConsumption * costPerCredit);
                   const roiPositive = roiValue >= 0;
                   return (
-                    <div className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm font-medium ${roiPositive ? 'border-green-200 bg-green-50 text-green-800' : 'border-red-200 bg-red-50 text-red-800'}`}>
-                      <span className="mt-0.5 text-base">{roiPositive ? '✓' : '✗'}</span>
-                      <span>
-                        Return on Investment: <strong>${Math.abs(Math.round(roiValue)).toLocaleString()}</strong> {roiPositive ? 'net gain' : 'net cost'}.
-                        {' '}FTE Savings Cost (${Math.round(roi.fteSavings).toLocaleString()}) − Cost of Credits (${Math.round(roi.creditConsumption * costPerCredit).toLocaleString()}).
-                        {' '}{roiPositive ? 'Automation delivers a positive return.' : 'Credit costs currently exceed FTE savings.'}
-                      </span>
+                    <div className={`overflow-hidden rounded-xl border-2 ${roiPositive ? 'border-green-400' : 'border-red-400'}`}>
+                      <div className={`px-6 py-5 text-center ${roiPositive ? 'bg-green-500' : 'bg-red-500'}`}>
+                        <p className="text-xs font-semibold uppercase tracking-widest text-white/80">Return on Investment</p>
+                        <p className="mt-1 text-4xl font-bold text-white">${Math.abs(Math.round(roiValue)).toLocaleString()}</p>
+                        <p className="mt-1 text-sm font-semibold text-white/90">{roiPositive ? 'Net Gain' : 'Net Cost'}</p>
+                      </div>
+                      <div className={`flex items-start gap-3 px-4 py-3 text-sm font-medium ${roiPositive ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
+                        <span className="mt-0.5 text-base">{roiPositive ? '✓' : '✗'}</span>
+                        <span>
+                          Return on Investment: <strong>${Math.abs(Math.round(roiValue)).toLocaleString()}</strong> {roiPositive ? 'net gain' : 'net cost'}.
+                          {' '}FTE Savings Cost (${Math.round(roi.fteSavings).toLocaleString()}) − Cost of Credits (${Math.round(roi.creditConsumption * costPerCredit).toLocaleString()}).
+                          {' '}{roiPositive ? 'Automation delivers a positive return.' : 'Credit costs currently exceed FTE savings.'}
+                        </span>
+                      </div>
                     </div>
                   );
                 })()}
@@ -1286,13 +1387,13 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
                   <div className="flex items-start gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-800">
                     <span className="mt-0.5 text-base">✓</span>
                     <span>
-                      Decision Cycle Time Compression: auditor cycle time reduced from{' '}
+                      Decision Cycle Time Compression: expense processing cycle time reduced from{' '}
                       <strong>
                         {selectedOperationalAnswers.reimbursementCycleTime === 'other'
                           ? (selectedOperationalAnswers.reimbursementCycleTimeCustom || 'custom')
                           : selectedOperationalAnswers.reimbursementCycleTime}
                       </strong>{' '}
-                      to <strong>1–2 mins with Agents</strong>.
+                      to <strong>1–2 hours with Agents</strong>.
                     </span>
                   </div>
                 )}
@@ -1375,15 +1476,22 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
                     const roiValue = roi.fteSavings - (roi.creditConsumption * costPerCredit);
                     const roiPositive = roiValue >= 0;
                     return (
-                      <div className="mt-3 flex items-start gap-3 rounded-lg px-4 py-3 text-sm font-medium" style={roiPositive
-                        ? { background: '#C5ECD0', border: '1px solid #0BDC4D', color: '#3D3533' }
-                        : { background: '#FCD6CF', border: '1px solid #F35F45', color: '#3D3533' }}>
-                        <span className="mt-0.5 text-base">{roiPositive ? '✓' : '✗'}</span>
-                        <span>
-                          Return on Investment: <strong>${Math.abs(Math.round(roiValue)).toLocaleString()}</strong> {roiPositive ? 'net gain' : 'net cost'}.
-                          {' '}FTE Savings Cost (${Math.round(roi.fteSavings).toLocaleString()}) − Cost of Credits (${Math.round(roi.creditConsumption * costPerCredit).toLocaleString()}).
-                          {' '}{roiPositive ? 'Automation delivers a positive return.' : 'Credit costs currently exceed FTE savings.'}
-                        </span>
+                      <div className="mt-3 overflow-hidden rounded-xl" style={{ border: roiPositive ? '2px solid #0BDC4D' : '2px solid #F35F45' }}>
+                        <div className="px-6 py-5 text-center" style={{ background: roiPositive ? '#0BDC4D' : '#F35F45' }}>
+                          <p style={{ fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.8)' }}>Return on Investment</p>
+                          <p style={{ marginTop: '4px', fontSize: '2.25rem', fontWeight: 700, color: '#ffffff' }}>${Math.abs(Math.round(roiValue)).toLocaleString()}</p>
+                          <p style={{ marginTop: '4px', fontSize: '0.875rem', fontWeight: 600, color: 'rgba(255,255,255,0.9)' }}>{roiPositive ? 'Net Gain' : 'Net Cost'}</p>
+                        </div>
+                        <div className="flex items-start gap-3 px-4 py-3 text-sm font-medium" style={roiPositive
+                          ? { background: '#C5ECD0', color: '#3D3533' }
+                          : { background: '#FCD6CF', color: '#3D3533' }}>
+                          <span style={{ marginTop: '2px' }}>{roiPositive ? '✓' : '✗'}</span>
+                          <span>
+                            Return on Investment: <strong>${Math.abs(Math.round(roiValue)).toLocaleString()}</strong> {roiPositive ? 'net gain' : 'net cost'}.
+                            {' '}FTE Savings Cost (${Math.round(roi.fteSavings).toLocaleString()}) − Cost of Credits (${Math.round(roi.creditConsumption * costPerCredit).toLocaleString()}).
+                            {' '}{roiPositive ? 'Automation delivers a positive return.' : 'Credit costs currently exceed FTE savings.'}
+                          </span>
+                        </div>
                       </div>
                     );
                   })()}
@@ -1410,13 +1518,13 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
                     <div className="mt-3 flex items-start gap-3 rounded-lg px-4 py-3 text-sm font-medium" style={{ background: '#C5ECD0', border: '1px solid #0BDC4D', color: '#3D3533' }}>
                       <span className="mt-0.5 text-base">✓</span>
                       <span>
-                        Decision Cycle Time Compression: auditor cycle time reduced from{' '}
+                        Decision Cycle Time Compression: expense processing cycle time reduced from{' '}
                         <strong>
                           {selectedOperationalAnswers.reimbursementCycleTime === 'other'
                             ? (selectedOperationalAnswers.reimbursementCycleTimeCustom || 'custom')
                             : selectedOperationalAnswers.reimbursementCycleTime}
                         </strong>{' '}
-                        to <strong>1–2 mins with Agents</strong>.
+                        to <strong>1–2 hours with Agents</strong>.
                       </span>
                     </div>
                   )}
@@ -1455,7 +1563,7 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
                       <span className="font-semibold text-slate-900">{selectedOperationalAnswers.auditorCount || 'Not specified'}</span>
                     </div>
                     <div className="flex items-center justify-between border-t border-slate-200 pt-2">
-                      <span className="text-slate-500">Auditor Decision Cycle Time</span>
+                      <span className="text-slate-500">Expense Reimbursement Cycle Time</span>
                       <span className="font-semibold text-slate-900">
                         {selectedOperationalAnswers.reimbursementCycleTime === 'other'
                           ? (selectedOperationalAnswers.reimbursementCycleTimeCustom || 'Other')
@@ -1749,7 +1857,7 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-700">Auditor Decision Cycle Time</label>
+                  <label className="text-sm font-medium text-slate-700">Expense Reimbursement Cycle Time</label>
                   <select
                     className="h-10 w-full rounded-md border border-app-border bg-white px-3 text-sm disabled:bg-slate-50"
                     disabled={!selectedIndustry}
@@ -1768,11 +1876,11 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
                     }}
                   >
                     <option value="">{selectedIndustry ? 'Select cycle time' : 'Select an industry first'}</option>
-                    <option value="5 mins">5 mins</option>
-                    <option value="10 mins">10 mins</option>
-                    <option value="15 mins">15 mins</option>
-                    <option value="30 mins">30 mins</option>
-                    <option value="60 mins">60 mins</option>
+                    <option value="1 Day">1 Day</option>
+                    <option value="2 Days">2 Days</option>
+                    <option value="4 Days">4 Days</option>
+                    <option value="7 Days">7 Days</option>
+                    <option value="14 Days">14 Days</option>
                     <option value="other">Other</option>
                   </select>
                   {selectedIndustryOperationalAnswers.reimbursementCycleTime === 'other' && (
@@ -1940,6 +2048,81 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
                 <CardDescription>Adjust assumptions to estimate operational impact for top high-risk model lines.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
+                {/* Volume basis toggle */}
+                <div className="flex flex-col gap-1.5">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">High-Risk Volume Basis</p>
+                  <div className="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-1">
+                    <button
+                      type="button"
+                      onClick={() => setIndustryRoiVolumeMode('top5')}
+                      className={cn(
+                        'rounded-md px-4 py-1.5 text-xs font-semibold transition-colors',
+                        industryRoiVolumeMode === 'top5'
+                          ? 'bg-white text-slate-900 shadow-sm'
+                          : 'text-slate-500 hover:text-slate-700'
+                      )}
+                    >
+                      Top 5 Models
+                      {industryTop5TotalHighRisk > 0 && (
+                        <span className={cn('ml-1.5 rounded-full px-1.5 py-0.5 text-xs', industryRoiVolumeMode === 'top5' ? 'bg-slate-100 text-slate-600' : 'bg-slate-200 text-slate-500')}>
+                          {industryTop5TotalHighRisk.toLocaleString()}
+                        </span>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIndustryRoiVolumeMode('all')}
+                      className={cn(
+                        'rounded-md px-4 py-1.5 text-xs font-semibold transition-colors',
+                        industryRoiVolumeMode === 'all'
+                          ? 'bg-white text-slate-900 shadow-sm'
+                          : 'text-slate-500 hover:text-slate-700'
+                      )}
+                    >
+                      All Models
+                      {industrySummary.totalHighRisk > 0 && (
+                        <span className={cn('ml-1.5 rounded-full px-1.5 py-0.5 text-xs', industryRoiVolumeMode === 'all' ? 'bg-slate-100 text-slate-600' : 'bg-slate-200 text-slate-500')}>
+                          {industrySummary.totalHighRisk.toLocaleString()}
+                        </span>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setIndustryRoiVolumeMode('single'); if (!industryRoiSingleModel && industryTop5[0]) setIndustryRoiSingleModel(industryTop5[0].model); }}
+                      className={cn(
+                        'rounded-md px-4 py-1.5 text-xs font-semibold transition-colors',
+                        industryRoiVolumeMode === 'single'
+                          ? 'bg-white text-slate-900 shadow-sm'
+                          : 'text-slate-500 hover:text-slate-700'
+                      )}
+                    >
+                      Single Model
+                    </button>
+                  </div>
+                  {industryRoiVolumeMode === 'single' && industryTop5.length > 0 && (
+                    <select
+                      value={industryRoiSingleModel}
+                      onChange={(e) => setIndustryRoiSingleModel(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
+                    >
+                      {industryTop5.map((m) => (
+                        <option key={m.model} value={m.model}>
+                          {m.model} — {m.total.toLocaleString()} lines
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  <p className="text-xs text-slate-400">
+                    {industryRoiVolumeMode === 'top5'
+                      ? 'Using top 5 models by high-risk line volume as the ROI basis.'
+                      : industryRoiVolumeMode === 'all'
+                      ? 'Using total high-risk line volume across all models as the ROI basis.'
+                      : industryRoiSingleModel
+                      ? `Using ${industryRoiSingleModel} (${(industryTop5.find((m) => m.model === industryRoiSingleModel)?.total ?? 0).toLocaleString()} lines) as the ROI basis.`
+                      : 'Select a model from the list above.'}
+                  </p>
+                </div>
+
                 <div className="grid gap-3 md:grid-cols-3">
                   <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Time Saved per High-Risk Line</p>
@@ -2003,13 +2186,20 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
                   const roiValue = industryRoi.fteSavings - (industryRoi.creditConsumption * costPerCredit);
                   const roiPositive = roiValue >= 0;
                   return (
-                    <div className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm font-medium ${roiPositive ? 'border-green-200 bg-green-50 text-green-800' : 'border-red-200 bg-red-50 text-red-800'}`}>
-                      <span className="mt-0.5 text-base">{roiPositive ? '✓' : '✗'}</span>
-                      <span>
-                        Return on Investment: <strong>${Math.abs(Math.round(roiValue)).toLocaleString()}</strong> {roiPositive ? 'net gain' : 'net cost'}.
-                        {' '}FTE Savings Cost (${Math.round(industryRoi.fteSavings).toLocaleString()}) − Cost of Credits (${Math.round(industryRoi.creditConsumption * costPerCredit).toLocaleString()}).
-                        {' '}{roiPositive ? 'Automation delivers a positive return.' : 'Credit costs currently exceed FTE savings.'}
-                      </span>
+                    <div className={`overflow-hidden rounded-xl border-2 ${roiPositive ? 'border-green-400' : 'border-red-400'}`}>
+                      <div className={`px-6 py-5 text-center ${roiPositive ? 'bg-green-500' : 'bg-red-500'}`}>
+                        <p className="text-xs font-semibold uppercase tracking-widest text-white/80">Return on Investment</p>
+                        <p className="mt-1 text-4xl font-bold text-white">${Math.abs(Math.round(roiValue)).toLocaleString()}</p>
+                        <p className="mt-1 text-sm font-semibold text-white/90">{roiPositive ? 'Net Gain' : 'Net Cost'}</p>
+                      </div>
+                      <div className={`flex items-start gap-3 px-4 py-3 text-sm font-medium ${roiPositive ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
+                        <span className="mt-0.5 text-base">{roiPositive ? '✓' : '✗'}</span>
+                        <span>
+                          Return on Investment: <strong>${Math.abs(Math.round(roiValue)).toLocaleString()}</strong> {roiPositive ? 'net gain' : 'net cost'}.
+                          {' '}FTE Savings Cost (${Math.round(industryRoi.fteSavings).toLocaleString()}) − Cost of Credits (${Math.round(industryRoi.creditConsumption * costPerCredit).toLocaleString()}).
+                          {' '}{roiPositive ? 'Automation delivers a positive return.' : 'Credit costs currently exceed FTE savings.'}
+                        </span>
+                      </div>
                     </div>
                   );
                 })()}
@@ -2034,13 +2224,13 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
                   <div className="flex items-start gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-800">
                     <span className="mt-0.5 text-base">✓</span>
                     <span>
-                      Decision Cycle Time Compression: auditor cycle time reduced from{' '}
+                      Decision Cycle Time Compression: expense processing cycle time reduced from{' '}
                       <strong>
                         {selectedIndustryOperationalAnswers.reimbursementCycleTime === 'other'
                           ? (selectedIndustryOperationalAnswers.reimbursementCycleTimeCustom || 'custom')
                           : selectedIndustryOperationalAnswers.reimbursementCycleTime}
                       </strong>{' '}
-                      to <strong>1–2 mins with Agents</strong>.
+                      to <strong>1–2 hours with Agents</strong>.
                     </span>
                   </div>
                 )}
@@ -2122,15 +2312,22 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
                     const roiValue = industryRoi.fteSavings - (industryRoi.creditConsumption * costPerCredit);
                     const roiPositive = roiValue >= 0;
                     return (
-                      <div className="mt-3 flex items-start gap-3 rounded-lg px-4 py-3 text-sm font-medium" style={roiPositive
-                        ? { background: '#C5ECD0', border: '1px solid #0BDC4D', color: '#3D3533' }
-                        : { background: '#FCD6CF', border: '1px solid #F35F45', color: '#3D3533' }}>
-                        <span className="mt-0.5 text-base">{roiPositive ? '✓' : '✗'}</span>
-                        <span>
-                          Return on Investment: <strong>${Math.abs(Math.round(roiValue)).toLocaleString()}</strong> {roiPositive ? 'net gain' : 'net cost'}.
-                          {' '}FTE Savings Cost (${Math.round(industryRoi.fteSavings).toLocaleString()}) − Cost of Credits (${Math.round(industryRoi.creditConsumption * costPerCredit).toLocaleString()}).
-                          {' '}{roiPositive ? 'Automation delivers a positive return.' : 'Credit costs currently exceed FTE savings.'}
-                        </span>
+                      <div className="mt-3 overflow-hidden rounded-xl" style={{ border: roiPositive ? '2px solid #0BDC4D' : '2px solid #F35F45' }}>
+                        <div className="px-6 py-5 text-center" style={{ background: roiPositive ? '#0BDC4D' : '#F35F45' }}>
+                          <p style={{ fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.8)' }}>Return on Investment</p>
+                          <p style={{ marginTop: '4px', fontSize: '2.25rem', fontWeight: 700, color: '#ffffff' }}>${Math.abs(Math.round(roiValue)).toLocaleString()}</p>
+                          <p style={{ marginTop: '4px', fontSize: '0.875rem', fontWeight: 600, color: 'rgba(255,255,255,0.9)' }}>{roiPositive ? 'Net Gain' : 'Net Cost'}</p>
+                        </div>
+                        <div className="flex items-start gap-3 px-4 py-3 text-sm font-medium" style={roiPositive
+                          ? { background: '#C5ECD0', color: '#3D3533' }
+                          : { background: '#FCD6CF', color: '#3D3533' }}>
+                          <span style={{ marginTop: '2px' }}>{roiPositive ? '✓' : '✗'}</span>
+                          <span>
+                            Return on Investment: <strong>${Math.abs(Math.round(roiValue)).toLocaleString()}</strong> {roiPositive ? 'net gain' : 'net cost'}.
+                            {' '}FTE Savings Cost (${Math.round(industryRoi.fteSavings).toLocaleString()}) − Cost of Credits (${Math.round(industryRoi.creditConsumption * costPerCredit).toLocaleString()}).
+                            {' '}{roiPositive ? 'Automation delivers a positive return.' : 'Credit costs currently exceed FTE savings.'}
+                          </span>
+                        </div>
                       </div>
                     );
                   })()}
@@ -2157,13 +2354,13 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
                     <div className="mt-3 flex items-start gap-3 rounded-lg px-4 py-3 text-sm font-medium" style={{ background: '#C5ECD0', border: '1px solid #0BDC4D', color: '#3D3533' }}>
                       <span className="mt-0.5 text-base">✓</span>
                       <span>
-                        Decision Cycle Time Compression: auditor cycle time reduced from{' '}
+                        Decision Cycle Time Compression: expense processing cycle time reduced from{' '}
                         <strong>
                           {selectedIndustryOperationalAnswers.reimbursementCycleTime === 'other'
                             ? (selectedIndustryOperationalAnswers.reimbursementCycleTimeCustom || 'custom')
                             : selectedIndustryOperationalAnswers.reimbursementCycleTime}
                         </strong>{' '}
-                        to <strong>1–2 mins with Agents</strong>.
+                        to <strong>1–2 hours with Agents</strong>.
                       </span>
                     </div>
                   )}
@@ -2198,7 +2395,7 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
                       <span className="font-semibold text-slate-900">{selectedIndustryOperationalAnswers.auditorCount || 'Not specified'}</span>
                     </div>
                     <div className="flex items-center justify-between border-t border-slate-200 pt-2">
-                      <span className="text-slate-500">Auditor Decision Cycle Time</span>
+                      <span className="text-slate-500">Expense Reimbursement Cycle Time</span>
                       <span className="font-semibold text-slate-900">
                         {selectedIndustryOperationalAnswers.reimbursementCycleTime === 'other'
                           ? (selectedIndustryOperationalAnswers.reimbursementCycleTimeCustom || 'Other')
