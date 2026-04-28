@@ -224,13 +224,15 @@ export function AgentModelWorkspace({ panel }: { panel: AgentModelPanel }) {
 
   const [industrySearch, setIndustrySearch] = useState('');
   const [selectedIndustry, setSelectedIndustry] = useState('');
+  const [selectedSubIndustries, setSelectedSubIndustries] = useState<string[]>([]);
   const [industryOperationalAnswers, setIndustryOperationalAnswers] = useState<Record<string, CustomerOperationalAnswers>>({});
   const [prospectExporting, setProspectExporting] = useState(false);
 
   const [roiVolumeMode, setRoiVolumeMode] = useState<'top5' | 'all' | 'single'>('top5');
   const [roiSingleModel, setRoiSingleModel] = useState('');
-  const [industryRoiVolumeMode, setIndustryRoiVolumeMode] = useState<'top5' | 'all' | 'single'>('top5');
+  const [industryRoiVolumeMode, setIndustryRoiVolumeMode] = useState<'manual' | 'top5' | 'all' | 'single'>('top5');
   const [industryRoiSingleModel, setIndustryRoiSingleModel] = useState('');
+  const [industryRoiManualVolume, setIndustryRoiManualVolume] = useState<string>('');
 
   const [timeMinutes, setTimeMinutes] = useState(3);
   const [creditsPerAction, setCreditsPerAction] = useState(2);
@@ -351,17 +353,40 @@ export function AgentModelWorkspace({ panel }: { panel: AgentModelPanel }) {
   }, [exportHeatmapExpenseTypes]);
 
   // ── Industry / Prospect tab memos ─────────────────────────────────────────
-  const industries = useMemo(() => uniqueIndustryNames(rows), [rows]);
+  const industryCustomerCounts = useMemo(() => {
+    const counts = new Map<string, Set<string>>();
+    for (const row of rows) {
+      if (!row.industry) continue;
+      if (!counts.has(row.industry)) counts.set(row.industry, new Set());
+      if (row.customer_name) counts.get(row.industry)!.add(row.customer_name);
+    }
+    return counts;
+  }, [rows]);
+
+  const industries = useMemo(
+    () => uniqueIndustryNames(rows).filter((ind) => (industryCustomerCounts.get(ind)?.size ?? 0) >= 5),
+    [rows, industryCustomerCounts]
+  );
   const filteredIndustries = useMemo(() => {
     const q = industrySearch.trim().toLowerCase();
     if (!q) return industries;
     return industries.filter((ind) => ind.toLowerCase().includes(q));
   }, [industries, industrySearch]);
 
-  const industryRows = useMemo(() => {
+  const industryAllRows = useMemo(() => {
     if (!selectedIndustry) return [];
     return rows.filter((row) => row.industry === selectedIndustry);
   }, [rows, selectedIndustry]);
+
+  const availableSubIndustries = useMemo(
+    () => [...new Set(industryAllRows.map((r) => r.sub_industry).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
+    [industryAllRows]
+  );
+
+  const industryRows = useMemo(() => {
+    if (selectedSubIndustries.length === 0) return industryAllRows;
+    return industryAllRows.filter((row) => selectedSubIndustries.includes(row.sub_industry));
+  }, [industryAllRows, selectedSubIndustries]);
 
   const industryStdRows = useMemo(
     () => industryRows.filter((row) => row.model_category.toLowerCase() === 'standard model'),
@@ -385,7 +410,9 @@ export function AgentModelWorkspace({ panel }: { panel: AgentModelPanel }) {
 
   const industryRoi = useMemo(() => {
     let baseVolume: number;
-    if (industryRoiVolumeMode === 'single') {
+    if (industryRoiVolumeMode === 'manual') {
+      baseVolume = parseInt(industryRoiManualVolume.replace(/,/g, ''), 10) || 0;
+    } else if (industryRoiVolumeMode === 'single') {
       const match = industryTop5.find((m) => m.model === industryRoiSingleModel);
       baseVolume = match ? match.total : 0;
     } else {
@@ -402,7 +429,7 @@ export function AgentModelWorkspace({ panel }: { panel: AgentModelPanel }) {
         ? `${(timeSavedHours / 24).toLocaleString(undefined, { maximumFractionDigits: 1 })} days`
         : `${timeSavedHours.toLocaleString(undefined, { maximumFractionDigits: 1 })} hrs`;
     return { displayTime, timeSavedMins, fteEquivalent, fteSavings, creditConsumption };
-  }, [industryRoiVolumeMode, industryRoiSingleModel, industryTop5, industryTop5TotalHighRisk, industrySummary.totalHighRisk, timeMinutes, fteCost, creditsPerAction]);
+  }, [industryRoiVolumeMode, industryRoiManualVolume, industryRoiSingleModel, industryTop5, industryTop5TotalHighRisk, industrySummary.totalHighRisk, timeMinutes, fteCost, creditsPerAction]);
 
   const industryMaxHeat = useMemo(() => {
     const max = industryStdRows.reduce((acc, row) => Math.max(acc, row.number_of_high_risk_line), 0);
@@ -1756,13 +1783,56 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
                   className="h-10 w-full rounded-md border border-app-border bg-white px-3 text-sm"
                   value={selectedIndustry}
                   disabled={filteredIndustries.length === 0}
-                  onChange={(event) => setSelectedIndustry(event.target.value)}
+                  onChange={(event) => { setSelectedIndustry(event.target.value); setSelectedSubIndustries([]); }}
                 >
                   <option value="">{rows.length ? 'Select an industry' : 'Upload metadata in Admin first'}</option>
                   {filteredIndustries.map((ind) => (
                     <option key={ind} value={ind}>{ind}</option>
                   ))}
                 </select>
+                {selectedIndustry && availableSubIndustries.length > 0 && (
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Sub-Industry <span className="normal-case font-normal text-slate-400">(optional)</span>
+                      </p>
+                      {selectedSubIndustries.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedSubIndustries([])}
+                          className="text-xs text-slate-400 hover:text-slate-600 underline"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                    <div className="max-h-36 overflow-y-auto rounded-md border border-app-border bg-white p-2 space-y-1">
+                      {availableSubIndustries.map((sub) => {
+                        const checked = selectedSubIndustries.includes(sub);
+                        return (
+                          <label key={sub} className="flex items-center gap-2 cursor-pointer rounded px-2 py-1 hover:bg-slate-50">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() =>
+                                setSelectedSubIndustries((prev) =>
+                                  checked ? prev.filter((s) => s !== sub) : [...prev, sub]
+                                )
+                              }
+                              className="h-3.5 w-3.5 rounded border-slate-300 text-slate-800 accent-slate-800"
+                            />
+                            <span className="text-sm text-slate-700">{sub}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                    {selectedSubIndustries.length > 0 && (
+                      <p className="text-xs text-slate-400">
+                        Showing data for {selectedSubIndustries.length === 1 ? selectedSubIndustries[0] : `${selectedSubIndustries.length} sub-industries`}.
+                      </p>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -2051,7 +2121,19 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
                 {/* Volume basis toggle */}
                 <div className="flex flex-col gap-1.5">
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">High-Risk Volume Basis</p>
-                  <div className="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-1">
+                  <div className="inline-flex flex-wrap rounded-lg border border-slate-200 bg-slate-100 p-1 gap-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setIndustryRoiVolumeMode('manual')}
+                      className={cn(
+                        'rounded-md px-4 py-1.5 text-xs font-semibold transition-colors',
+                        industryRoiVolumeMode === 'manual'
+                          ? 'bg-white text-slate-900 shadow-sm'
+                          : 'text-slate-500 hover:text-slate-700'
+                      )}
+                    >
+                      Manual Entry
+                    </button>
                     <button
                       type="button"
                       onClick={() => setIndustryRoiVolumeMode('top5')}
@@ -2062,7 +2144,7 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
                           : 'text-slate-500 hover:text-slate-700'
                       )}
                     >
-                      Top 5 Models
+                      Top 5 Industry Models
                       {industryTop5TotalHighRisk > 0 && (
                         <span className={cn('ml-1.5 rounded-full px-1.5 py-0.5 text-xs', industryRoiVolumeMode === 'top5' ? 'bg-slate-100 text-slate-600' : 'bg-slate-200 text-slate-500')}>
                           {industryTop5TotalHighRisk.toLocaleString()}
@@ -2099,6 +2181,19 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
                       Single Model
                     </button>
                   </div>
+                  {industryRoiVolumeMode === 'manual' && (
+                    <div className="mt-1 flex flex-col gap-1">
+                      <label className="text-xs text-slate-500">Total high-risk lines currently flagged</label>
+                      <input
+                        type="number"
+                        min={0}
+                        placeholder="e.g. 12500"
+                        value={industryRoiManualVolume}
+                        onChange={(e) => setIndustryRoiManualVolume(e.target.value)}
+                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
+                      />
+                    </div>
+                  )}
                   {industryRoiVolumeMode === 'single' && industryTop5.length > 0 && (
                     <select
                       value={industryRoiSingleModel}
@@ -2113,8 +2208,12 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
                     </select>
                   )}
                   <p className="text-xs text-slate-400">
-                    {industryRoiVolumeMode === 'top5'
-                      ? 'Using top 5 models by high-risk line volume as the ROI basis.'
+                    {industryRoiVolumeMode === 'manual'
+                      ? industryRoiManualVolume && parseInt(industryRoiManualVolume, 10) > 0
+                        ? `Using ${parseInt(industryRoiManualVolume, 10).toLocaleString()} manually entered high-risk lines as the ROI basis.`
+                        : 'Enter the total number of high-risk lines currently flagged to calculate ROI.'
+                      : industryRoiVolumeMode === 'top5'
+                      ? 'Using top 5 industry models by high-risk line volume as the ROI basis.'
                       : industryRoiVolumeMode === 'all'
                       ? 'Using total high-risk line volume across all models as the ROI basis.'
                       : industryRoiSingleModel
