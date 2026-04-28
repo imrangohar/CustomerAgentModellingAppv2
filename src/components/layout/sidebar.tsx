@@ -16,6 +16,7 @@ import {
   UserRoundSearch,
   ChevronDown,
   Grid2x2,
+  BookMarked,
 } from 'lucide-react';
 
 function AppZenLogo() {
@@ -29,7 +30,7 @@ type NavItem = {
   href: string;
   label: string;
   icon: ComponentType<{ className?: string }>;
-  panel?: 'admin' | 'customers' | 'prospect';
+  panel?: 'admin' | 'customers' | 'blueprint' | 'prospect';
 };
 
 const defaultNavItems: NavItem[] = [
@@ -44,6 +45,7 @@ const defaultNavItems: NavItem[] = [
 const agentModelNavItems: NavItem[] = [
   { href: '/agent-model/admin', label: 'Admin', icon: Database, panel: 'admin' },
   { href: '/agent-model/customers', label: 'Customers', icon: Users, panel: 'customers' },
+  { href: '/agent-model/blueprint', label: 'Customers (Blueprint)', icon: BookMarked, panel: 'blueprint' },
   { href: '/agent-model/prospect', label: 'Prospect', icon: UserRoundSearch, panel: 'prospect' },
 ];
 

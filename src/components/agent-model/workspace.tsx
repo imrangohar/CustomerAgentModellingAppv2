@@ -20,7 +20,30 @@ import {
   type AgentModelRow,
 } from '@/lib/agentModel';
 
-export type AgentModelPanel = 'admin' | 'customers' | 'prospect';
+export type AgentModelPanel = 'admin' | 'customers' | 'blueprint' | 'prospect';
+
+export interface BlueprintRow {
+  workPack: string;
+  complianceArea: string;
+  highRiskLines: number;
+  approvedPct: number;
+  rejectedPct: number;
+  agentCoveragePct: number;
+}
+
+export interface BlueprintData {
+  customer: string;
+  analysisPeriod: string;
+  reportDate: string;
+  totalExpenseLines: number;
+  approvedByAuditors: number;
+  rejectedByAuditors: number;
+  agentsReadyToDeploy: BlueprintRow[];
+  sopRequireModification: BlueprintRow[];
+  sopRequireCreation: BlueprintRow[];
+  filename: string;
+  savedAt: number;
+}
 
 interface ApiResponse {
   ok: boolean;
@@ -71,6 +94,10 @@ const panelMeta: Record<AgentModelPanel, { label: string; subtitle: string }> = 
   customers: {
     label: 'Customers',
     subtitle: 'Customer-level model analytics, rankings, heatmaps, and ROI impact.',
+  },
+  blueprint: {
+    label: 'Customers (Blueprint)',
+    subtitle: 'Hybrid Workforce Analysis — Agent readiness, SOP gaps, and ROI impact from uploaded PDF.',
   },
   prospect: {
     label: 'Prospects',
@@ -239,6 +266,17 @@ export function AgentModelWorkspace({ panel }: { panel: AgentModelPanel }) {
   const [fteCost, setFteCost] = useState(35000);
   const [costPerCredit, setCostPerCredit] = useState(0.30);
 
+  // Blueprint panel state
+  const [blueprintData, setBlueprintData] = useState<BlueprintData | null>(null);
+  const [blueprintLoading, setBlueprintLoading] = useState(false);
+  const [blueprintNotice, setBlueprintNotice] = useState<{ kind: 'success' | 'warning' | 'error' | 'info'; message: string } | null>(null);
+  const [bpTableSelection, setBpTableSelection] = useState({ ready: true, modify: false, create: false });
+  const [bpOperationalAnswers, setBpOperationalAnswers] = useState<CustomerOperationalAnswers>({
+    auditorCount: '',
+    reimbursementCycleTime: '',
+    reimbursementCycleTimeCustom: '',
+  });
+
   const customers = useMemo(() => uniqueCustomerNames(rows), [rows]);
   const filteredCustomers = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -351,6 +389,40 @@ export function AgentModelWorkspace({ panel }: { panel: AgentModelPanel }) {
     }
     return groups;
   }, [exportHeatmapExpenseTypes]);
+
+  // ── Blueprint tab memos ────────────────────────────────────────────────────
+  const bpReadyTotal = useMemo(
+    () => blueprintData?.agentsReadyToDeploy.reduce((s, r) => s + r.highRiskLines, 0) ?? 0,
+    [blueprintData]
+  );
+  const bpModifyTotal = useMemo(
+    () => blueprintData?.sopRequireModification.reduce((s, r) => s + r.highRiskLines, 0) ?? 0,
+    [blueprintData]
+  );
+  const bpCreateTotal = useMemo(
+    () => blueprintData?.sopRequireCreation.reduce((s, r) => s + r.highRiskLines, 0) ?? 0,
+    [blueprintData]
+  );
+  const bpSelectedTotal = useMemo(() => {
+    let t = 0;
+    if (bpTableSelection.ready) t += bpReadyTotal;
+    if (bpTableSelection.modify) t += bpModifyTotal;
+    if (bpTableSelection.create) t += bpCreateTotal;
+    return t;
+  }, [bpReadyTotal, bpModifyTotal, bpCreateTotal, bpTableSelection]);
+
+  const bpRoi = useMemo(() => {
+    if (!bpSelectedTotal) return null;
+    const timeSavedMins = bpSelectedTotal * timeMinutes;
+    const timeSavedHours = timeSavedMins / 60;
+    const fteEquivalent = timeSavedHours / 1920;
+    const fteSavings = fteEquivalent * fteCost;
+    const creditConsumption = bpSelectedTotal * creditsPerAction;
+    const displayTime = timeSavedHours >= 24
+      ? `${(timeSavedHours / 24).toLocaleString(undefined, { maximumFractionDigits: 1 })} days`
+      : `${timeSavedHours.toLocaleString(undefined, { maximumFractionDigits: 1 })} hrs`;
+    return { displayTime, timeSavedMins, fteEquivalent, fteSavings, creditConsumption };
+  }, [bpSelectedTotal, timeMinutes, fteCost, creditsPerAction]);
 
   // ── Industry / Prospect tab memos ─────────────────────────────────────────
   const industryCustomerCounts = useMemo(() => {
@@ -481,6 +553,7 @@ export function AgentModelWorkspace({ panel }: { panel: AgentModelPanel }) {
 
   useEffect(() => {
     void fetchSharedMetadata();
+    void fetchBlueprintData();
   }, []);
 
   async function fetchSharedMetadata() {
@@ -638,6 +711,53 @@ export function AgentModelWorkspace({ panel }: { panel: AgentModelPanel }) {
       setNotice({ kind: 'error', message: 'Unable to clear metadata right now.' });
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function fetchBlueprintData() {
+    try {
+      const res = await fetch('/api/agent-model/blueprint', { cache: 'no-store' });
+      const payload = (await res.json()) as { ok: boolean; data?: BlueprintData | null };
+      if (payload.ok && payload.data) {
+        setBlueprintData(payload.data);
+      }
+    } catch {
+      // silent — blueprint data is optional
+    }
+  }
+
+  async function handlePdfUpload(file: File) {
+    setBlueprintLoading(true);
+    setBlueprintNotice({ kind: 'info', message: `Parsing ${file.name}…` });
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/agent-model/blueprint', { method: 'POST', body: formData });
+      const payload = (await res.json()) as { ok: boolean; data?: BlueprintData; error?: string };
+      if (!payload.ok || !payload.data) {
+        setBlueprintNotice({ kind: 'error', message: payload.error || 'Failed to parse PDF.' });
+        return;
+      }
+      setBlueprintData(payload.data);
+      setBlueprintNotice({ kind: 'success', message: `Blueprint loaded: ${payload.data.customer} · ${file.name}` });
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      setBlueprintNotice({ kind: 'error', message: `Upload error: ${detail}` });
+    } finally {
+      setBlueprintLoading(false);
+    }
+  }
+
+  async function clearBlueprintData() {
+    setBlueprintLoading(true);
+    try {
+      await fetch('/api/agent-model/blueprint', { method: 'DELETE' });
+      setBlueprintData(null);
+      setBlueprintNotice({ kind: 'info', message: 'Blueprint data cleared.' });
+    } catch {
+      setBlueprintNotice({ kind: 'error', message: 'Unable to clear blueprint data.' });
+    } finally {
+      setBlueprintLoading(false);
     }
   }
 
@@ -824,6 +944,7 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
       </Card>
 
       {panel === 'admin' && (
+        <>
         <Card>
           <CardHeader>
             <CardTitle>Metadata Upload</CardTitle>
@@ -890,6 +1011,60 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
             ) : null}
           </CardContent>
         </Card>
+
+        {/* PDF Blueprint Upload */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Hybrid Workforce Analysis PDF</CardTitle>
+            <CardDescription>Upload an AppZen Hybrid Workforce Analysis PDF to populate the Customers (Blueprint) section.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <label
+              className={cn(
+                'flex min-h-[150px] cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-app-border bg-slate-50 px-5 py-6 text-center hover:border-slate-400 hover:bg-slate-100',
+                blueprintLoading && 'pointer-events-none opacity-70'
+              )}
+            >
+              <Upload className="h-6 w-6 text-slate-500" />
+              <p className="text-sm font-medium text-slate-900">Click to upload or drag and drop</p>
+              <p className="text-xs text-slate-600">Accepts .pdf (Hybrid Workforce Analysis Report format)</p>
+              <input
+                type="file"
+                accept=".pdf"
+                className="hidden"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) {
+                    void handlePdfUpload(file);
+                    event.currentTarget.value = '';
+                  }
+                }}
+              />
+            </label>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {blueprintLoading ? (
+                <span className="inline-flex items-center gap-1 text-sm text-slate-600">
+                  <LoaderCircle className="h-4 w-4 animate-spin" /> Processing
+                </span>
+              ) : null}
+              {blueprintNotice ? statusBadge(blueprintNotice.kind, blueprintNotice.message) : null}
+              <Button variant="secondary" onClick={() => void fetchBlueprintData()} disabled={blueprintLoading}>
+                Refresh
+              </Button>
+              <Button variant="secondary" onClick={() => void clearBlueprintData()} disabled={blueprintLoading || !blueprintData}>
+                Clear blueprint
+              </Button>
+            </div>
+
+            <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+              {blueprintData
+                ? `${blueprintData.filename} · Customer: ${blueprintData.customer} · ${blueprintData.analysisPeriod}`
+                : 'No blueprint PDF loaded yet.'}
+            </div>
+          </CardContent>
+        </Card>
+        </>
       )}
 
       {panel === 'customers' && (
@@ -2655,6 +2830,455 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
               </div>
             </div>
           </div>
+        </>
+      )}
+
+      {/* ── Blueprint Panel ─────────────────────────────────────────────────── */}
+      {panel === 'blueprint' && (
+        <>
+          {!blueprintData ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>No Blueprint Data</CardTitle>
+                <CardDescription>Upload a Hybrid Workforce Analysis PDF in Admin to populate this section.</CardDescription>
+              </CardHeader>
+            </Card>
+          ) : (
+            <>
+              {/* Summary header */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Customer: {blueprintData.customer}</CardTitle>
+                  <CardDescription>Analysis Period: {blueprintData.analysisPeriod} · Generated: {blueprintData.reportDate}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-4">
+                    {[
+                      { label: 'Total Expense Lines (Annualized)', value: blueprintData.totalExpenseLines.toLocaleString() },
+                      { label: 'Approved by Auditors', value: `${blueprintData.approvedByAuditors.toLocaleString()} (${blueprintData.totalExpenseLines ? Math.round(blueprintData.approvedByAuditors / blueprintData.totalExpenseLines * 100) : 0}%)` },
+                      { label: 'Rejected by Auditors', value: `${blueprintData.rejectedByAuditors.toLocaleString()} (${blueprintData.totalExpenseLines ? Math.round(blueprintData.rejectedByAuditors / blueprintData.totalExpenseLines * 100) : 0}%)` },
+                      { label: 'Total Agent-Automatable Lines', value: (bpReadyTotal + bpModifyTotal + bpCreateTotal).toLocaleString() },
+                    ].map(({ label, value }) => (
+                      <div key={label} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+                        <p className="mt-1 text-lg font-semibold text-slate-900">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Agents Ready to Deploy */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Agents Ready to Deploy</CardTitle>
+                  <CardDescription>
+                    Areas where human audit work can be immediately transferred to AI Agents.
+                    {bpReadyTotal > 0 && <span className="ml-2 font-semibold text-slate-700">{bpReadyTotal.toLocaleString()} high-risk lines</span>}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-200 bg-slate-50">
+                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Compliance Area</th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">High Risk Lines</th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Approved %</th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Rejected %</th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Agent Coverage %</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(() => {
+                          let lastPack = '';
+                          return blueprintData.agentsReadyToDeploy.map((row, i) => {
+                            const packHeader = row.workPack !== lastPack ? (lastPack = row.workPack, row.workPack) : null;
+                            return (
+                              <>
+                                {packHeader && (
+                                  <tr key={`pack-${i}`} className="bg-slate-100">
+                                    <td colSpan={5} className="px-4 py-2 text-xs font-semibold text-slate-700">{packHeader}</td>
+                                  </tr>
+                                )}
+                                <tr key={i} className="border-b border-slate-100 hover:bg-slate-50">
+                                  <td className="px-4 py-2.5 text-slate-800">{row.complianceArea}</td>
+                                  <td className="px-4 py-2.5 text-right font-medium text-slate-900">{row.highRiskLines.toLocaleString()}</td>
+                                  <td className="px-4 py-2.5 text-right text-slate-600">{row.approvedPct}%</td>
+                                  <td className="px-4 py-2.5 text-right text-slate-600">{row.rejectedPct}%</td>
+                                  <td className="px-4 py-2.5 text-right">
+                                    <span className={cn('font-semibold', row.agentCoveragePct >= 80 ? 'text-green-700' : row.agentCoveragePct >= 60 ? 'text-amber-700' : 'text-red-700')}>
+                                      {row.agentCoveragePct}%
+                                    </span>
+                                  </td>
+                                </tr>
+                              </>
+                            );
+                          });
+                        })()}
+                        <tr className="border-t-2 border-slate-300 bg-slate-100 font-semibold">
+                          <td className="px-4 py-2.5 text-slate-800">Total</td>
+                          <td className="px-4 py-2.5 text-right text-slate-900">{bpReadyTotal.toLocaleString()}</td>
+                          <td colSpan={3} />
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Agent SOPs That Require Modification */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Agent SOPs That Require Modification</CardTitle>
+                  <CardDescription>
+                    Existing SOPs that do not fully capture human decision-making patterns and require refinement.
+                    {bpModifyTotal > 0 && <span className="ml-2 font-semibold text-slate-700">{bpModifyTotal.toLocaleString()} high-risk lines</span>}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-200 bg-slate-50">
+                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Compliance Area</th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">High Risk Lines</th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Approved %</th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Rejected %</th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Agent Coverage %</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(() => {
+                          let lastPack = '';
+                          return blueprintData.sopRequireModification.map((row, i) => {
+                            const packHeader = row.workPack !== lastPack ? (lastPack = row.workPack, row.workPack) : null;
+                            return (
+                              <>
+                                {packHeader && (
+                                  <tr key={`pack-${i}`} className="bg-slate-100">
+                                    <td colSpan={5} className="px-4 py-2 text-xs font-semibold text-slate-700">{packHeader}</td>
+                                  </tr>
+                                )}
+                                <tr key={i} className="border-b border-slate-100 hover:bg-slate-50">
+                                  <td className="px-4 py-2.5 text-slate-800">{row.complianceArea}</td>
+                                  <td className="px-4 py-2.5 text-right font-medium text-slate-900">{row.highRiskLines.toLocaleString()}</td>
+                                  <td className="px-4 py-2.5 text-right text-slate-600">{row.approvedPct}%</td>
+                                  <td className="px-4 py-2.5 text-right text-slate-600">{row.rejectedPct}%</td>
+                                  <td className="px-4 py-2.5 text-right">
+                                    <span className={cn('font-semibold', row.agentCoveragePct >= 80 ? 'text-green-700' : row.agentCoveragePct >= 60 ? 'text-amber-700' : 'text-red-700')}>
+                                      {row.agentCoveragePct}%
+                                    </span>
+                                  </td>
+                                </tr>
+                              </>
+                            );
+                          });
+                        })()}
+                        <tr className="border-t-2 border-slate-300 bg-slate-100 font-semibold">
+                          <td className="px-4 py-2.5 text-slate-800">Total</td>
+                          <td className="px-4 py-2.5 text-right text-slate-900">{bpModifyTotal.toLocaleString()}</td>
+                          <td colSpan={3} />
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Agent SOPs That Require Creation */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Agent SOPs That Require Creation</CardTitle>
+                  <CardDescription>
+                    Candidate Agent SOPs based on observed auditor behavior.
+                    {bpCreateTotal > 0 && <span className="ml-2 font-semibold text-slate-700">{bpCreateTotal.toLocaleString()} high-risk lines</span>}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-200 bg-slate-50">
+                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Compliance Area</th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">High Risk Lines</th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Approved %</th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Rejected %</th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Agent Coverage %</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(() => {
+                          let lastPack = '';
+                          return blueprintData.sopRequireCreation.map((row, i) => {
+                            const packHeader = row.workPack !== lastPack ? (lastPack = row.workPack, row.workPack) : null;
+                            return (
+                              <>
+                                {packHeader && (
+                                  <tr key={`pack-${i}`} className="bg-slate-100">
+                                    <td colSpan={5} className="px-4 py-2 text-xs font-semibold text-slate-700">{packHeader}</td>
+                                  </tr>
+                                )}
+                                <tr key={i} className="border-b border-slate-100 hover:bg-slate-50">
+                                  <td className="px-4 py-2.5 text-slate-800">{row.complianceArea}</td>
+                                  <td className="px-4 py-2.5 text-right font-medium text-slate-900">{row.highRiskLines.toLocaleString()}</td>
+                                  <td className="px-4 py-2.5 text-right text-slate-600">{row.approvedPct}%</td>
+                                  <td className="px-4 py-2.5 text-right text-slate-600">{row.rejectedPct}%</td>
+                                  <td className="px-4 py-2.5 text-right">
+                                    <span className={cn('font-semibold', row.agentCoveragePct >= 80 ? 'text-green-700' : row.agentCoveragePct >= 60 ? 'text-amber-700' : 'text-red-700')}>
+                                      {row.agentCoveragePct}%
+                                    </span>
+                                  </td>
+                                </tr>
+                              </>
+                            );
+                          });
+                        })()}
+                        <tr className="border-t-2 border-slate-300 bg-slate-100 font-semibold">
+                          <td className="px-4 py-2.5 text-slate-800">Total</td>
+                          <td className="px-4 py-2.5 text-right text-slate-900">{bpCreateTotal.toLocaleString()}</td>
+                          <td colSpan={3} />
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Operating Inputs + ROI Impact Calculator */}
+              <div className="grid gap-4 lg:grid-cols-2">
+                {/* Operating Inputs */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Customer Operating Inputs</CardTitle>
+                    <CardDescription>Enter assumptions used to contextualise the ROI calculator below.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Number of Auditors</p>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          step={1}
+                          value={Math.min(Number(bpOperationalAnswers.auditorCount) || 0, 100)}
+                          onChange={(e) => setBpOperationalAnswers((prev) => ({ ...prev, auditorCount: e.target.value }))}
+                          className="flex-1"
+                        />
+                        <span className="w-8 text-right text-sm font-semibold text-slate-700">
+                          {Number(bpOperationalAnswers.auditorCount) || 0}
+                        </span>
+                      </div>
+                      {Number(bpOperationalAnswers.auditorCount) >= 100 && (
+                        <Input
+                          type="number"
+                          min={100}
+                          placeholder="Enter exact number of auditors"
+                          value={bpOperationalAnswers.auditorCount}
+                          onChange={(e) => setBpOperationalAnswers((prev) => ({ ...prev, auditorCount: e.target.value }))}
+                        />
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Expense Reimbursement Cycle Time</p>
+                      <select
+                        className="h-10 w-full rounded-md border border-app-border bg-white px-3 text-sm"
+                        value={bpOperationalAnswers.reimbursementCycleTime}
+                        onChange={(e) => {
+                          const v = e.target.value as CustomerOperationalAnswers['reimbursementCycleTime'];
+                          setBpOperationalAnswers((prev) => ({
+                            ...prev,
+                            reimbursementCycleTime: v,
+                            reimbursementCycleTimeCustom: v !== 'other' ? '' : prev.reimbursementCycleTimeCustom,
+                          }));
+                        }}
+                      >
+                        <option value="">Select cycle time</option>
+                        <option value="1 Day">1 Day</option>
+                        <option value="2 Days">2 Days</option>
+                        <option value="4 Days">4 Days</option>
+                        <option value="7 Days">7 Days</option>
+                        <option value="14 Days">14 Days</option>
+                        <option value="other">Other</option>
+                      </select>
+                      {bpOperationalAnswers.reimbursementCycleTime === 'other' && (
+                        <Input
+                          placeholder="Enter custom cycle time"
+                          value={bpOperationalAnswers.reimbursementCycleTimeCustom}
+                          onChange={(e) => setBpOperationalAnswers((prev) => ({ ...prev, reimbursementCycleTimeCustom: e.target.value }))}
+                        />
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* ROI Impact Calculator */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>ROI Impact Calculator</CardTitle>
+                    <CardDescription>Select tables to include and adjust assumptions to estimate operational impact.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-5">
+                    {/* Table selection */}
+                    <div className="flex flex-col gap-1.5">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">High-Risk Volume Basis</p>
+                      <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                        {[
+                          { key: 'ready' as const, label: 'Agents Ready to Deploy', total: bpReadyTotal, color: 'text-green-700' },
+                          { key: 'modify' as const, label: 'Agent SOPs That Require Modification', total: bpModifyTotal, color: 'text-amber-700' },
+                          { key: 'create' as const, label: 'Agent SOPs That Require Creation', total: bpCreateTotal, color: 'text-blue-700' },
+                        ].map(({ key, label, total, color }) => (
+                          <label key={key} className="flex cursor-pointer items-center justify-between gap-3 rounded-md px-2 py-1 hover:bg-slate-100">
+                            <span className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={bpTableSelection[key]}
+                                onChange={() => setBpTableSelection((prev) => ({ ...prev, [key]: !prev[key] }))}
+                                className="h-3.5 w-3.5 rounded border-slate-300 accent-slate-800"
+                              />
+                              <span className="text-sm text-slate-700">{label}</span>
+                            </span>
+                            <span className={cn('text-xs font-semibold', color)}>{total.toLocaleString()} lines</span>
+                          </label>
+                        ))}
+                      </div>
+                      <p className="text-xs text-slate-400">
+                        {bpSelectedTotal > 0
+                          ? `Using ${bpSelectedTotal.toLocaleString()} high-risk lines as the ROI basis.`
+                          : 'Select at least one table to calculate ROI.'}
+                      </p>
+                    </div>
+
+                    {/* Sliders — shared with Customers / Prospect */}
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Time Saved per High-Risk Line</p>
+                        <p className="mb-2 text-xs text-slate-500">Minutes per line</p>
+                        <input type="range" min={1} max={30} step={1} value={timeMinutes} onChange={(e) => setTimeMinutes(Number(e.target.value))} className="w-full" />
+                        <p className="mt-1 text-right text-sm font-semibold text-slate-700">{timeMinutes} min</p>
+                      </div>
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Agent Credit Consumption</p>
+                        <p className="mb-2 text-xs text-slate-500">Credits per action</p>
+                        <input type="range" min={1} max={20} step={1} value={creditsPerAction} onChange={(e) => setCreditsPerAction(Number(e.target.value))} className="w-full" />
+                        <p className="mt-1 text-right text-sm font-semibold text-slate-700">{creditsPerAction} cr</p>
+                      </div>
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">FTE Fully Loaded Cost</p>
+                        <p className="mb-2 text-xs text-slate-500">USD per year</p>
+                        <input type="range" min={20000} max={200000} step={1000} value={fteCost} onChange={(e) => setFteCost(Number(e.target.value))} className="w-full" />
+                        <p className="mt-1 text-right text-sm font-semibold text-slate-700">${fteCost.toLocaleString()}</p>
+                      </div>
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Cost per Credit</p>
+                        <p className="mb-2 text-xs text-slate-500">USD per credit</p>
+                        <input type="range" min={0.01} max={2.00} step={0.01} value={costPerCredit} onChange={(e) => setCostPerCredit(Number(e.target.value))} className="w-full" />
+                        <p className="mt-1 text-right text-sm font-semibold text-slate-700">${costPerCredit.toFixed(2)}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* ROI output tiles — full width */}
+              {bpRoi ? (
+                <Card>
+                  <CardContent className="space-y-4 pt-5">
+                    <div className="grid gap-3 md:grid-cols-5">
+                      <div className="rounded-xl bg-slate-900 px-4 py-4 text-center text-white">
+                        <p className="text-xs uppercase tracking-wide text-slate-300">Auditor Time Saved</p>
+                        <p className="mt-1 text-xl font-semibold">{bpRoi.displayTime}</p>
+                        <p className="mt-1 text-xs text-slate-400">{bpRoi.timeSavedMins.toLocaleString()} minutes total</p>
+                      </div>
+                      <div className="rounded-xl bg-slate-900 px-4 py-4 text-center text-white">
+                        <p className="text-xs uppercase tracking-wide text-slate-300">FTE Equivalent</p>
+                        <p className="mt-1 text-xl font-semibold">{bpRoi.fteEquivalent.toFixed(2)}</p>
+                        <p className="mt-1 text-xs text-slate-400">1,920 hrs / FTE / year</p>
+                      </div>
+                      <div className="rounded-xl bg-slate-900 px-4 py-4 text-center text-white">
+                        <p className="text-xs uppercase tracking-wide text-slate-300">FTE Savings</p>
+                        <p className="mt-1 text-xl font-semibold">${Math.round(bpRoi.fteSavings).toLocaleString()}</p>
+                        <p className="mt-1 text-xs text-slate-400">at ${fteCost.toLocaleString()} loaded cost</p>
+                      </div>
+                      <div className="rounded-xl bg-slate-900 px-4 py-4 text-center text-white">
+                        <p className="text-xs uppercase tracking-wide text-slate-300">Credit Consumption</p>
+                        <p className="mt-1 text-xl font-semibold">{bpRoi.creditConsumption.toLocaleString()}</p>
+                        <p className="mt-1 text-xs text-slate-400">{creditsPerAction} credits per action</p>
+                      </div>
+                      <div className="rounded-xl bg-slate-900 px-4 py-4 text-center text-white">
+                        <p className="text-xs uppercase tracking-wide text-slate-300">Cost of Credits</p>
+                        <p className="mt-1 text-xl font-semibold">${(bpRoi.creditConsumption * costPerCredit).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                        <p className="mt-1 text-xs text-slate-400">${costPerCredit.toFixed(2)} per credit</p>
+                      </div>
+                    </div>
+
+                    {/* ROI banner */}
+                    {(() => {
+                      const roiValue = bpRoi.fteSavings - (bpRoi.creditConsumption * costPerCredit);
+                      const roiPositive = roiValue >= 0;
+                      return (
+                        <div className={`overflow-hidden rounded-xl border-2 ${roiPositive ? 'border-green-400' : 'border-red-400'}`}>
+                          <div className={`px-6 py-5 text-center ${roiPositive ? 'bg-green-500' : 'bg-red-500'}`}>
+                            <p className="text-xs font-semibold uppercase tracking-widest text-white/80">Return on Investment</p>
+                            <p className="mt-1 text-4xl font-bold text-white">${Math.abs(Math.round(roiValue)).toLocaleString()}</p>
+                            <p className="mt-1 text-sm font-semibold text-white/90">{roiPositive ? 'Net Gain' : 'Net Cost'}</p>
+                          </div>
+                          <div className={`flex items-start gap-3 px-4 py-3 text-sm font-medium ${roiPositive ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
+                            <span className="mt-0.5 text-base">{roiPositive ? '✓' : '✗'}</span>
+                            <span>
+                              Return on Investment: <strong>${Math.abs(Math.round(roiValue)).toLocaleString()}</strong> {roiPositive ? 'net gain' : 'net cost'}.
+                              {' '}FTE Savings (${Math.round(bpRoi.fteSavings).toLocaleString()}) − Cost of Credits (${Math.round(bpRoi.creditConsumption * costPerCredit).toLocaleString()}).
+                              {' '}{roiPositive ? 'Automation delivers a positive return.' : 'Credit costs currently exceed FTE savings.'}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {/* FTE headcount comparison */}
+                    {bpOperationalAnswers.auditorCount !== '' && (() => {
+                      const auditors = Number(bpOperationalAnswers.auditorCount);
+                      const fteDelta = auditors - bpRoi.fteEquivalent;
+                      const isPositive = fteDelta >= 0;
+                      return (
+                        <div className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm font-medium ${isPositive ? 'border-green-200 bg-green-50 text-green-800' : 'border-red-200 bg-red-50 text-red-800'}`}>
+                          <span className="mt-0.5 text-base">{isPositive ? '✓' : '✗'}</span>
+                          <span>
+                            FTE headcount required: <strong>{fteDelta.toFixed(2)} FTE</strong>
+                            {' '}({auditors} auditors entered − {bpRoi.fteEquivalent.toFixed(2)} FTE equivalent).
+                            {' '}{isPositive ? 'Automation covers the equivalent of these auditors, freeing capacity.' : 'Automation does not yet cover the full auditor headcount — additional efficiency gains needed.'}
+                          </span>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Decision cycle time */}
+                    {bpOperationalAnswers.reimbursementCycleTime && (
+                      <div className="flex items-start gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-800">
+                        <span className="mt-0.5 text-base">✓</span>
+                        <span>
+                          Decision Cycle Time Compression: expense processing cycle time reduced from{' '}
+                          <strong>
+                            {bpOperationalAnswers.reimbursementCycleTime === 'other'
+                              ? (bpOperationalAnswers.reimbursementCycleTimeCustom || 'custom')
+                              : bpOperationalAnswers.reimbursementCycleTime}
+                          </strong>{' '}
+                          to <strong>1–2 hours with Agents</strong>.
+                        </span>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card>
+                  <CardContent className="py-4">
+                    <p className="text-sm text-slate-500">Select at least one table above to see ROI metrics.</p>
+                  </CardContent>
+                </Card>
+              )}
+            </>
+          )}
         </>
       )}
 

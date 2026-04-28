@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import { AgentModelWorkspace, type AgentModelPanel } from '@/components/agent-model/workspace';
 
-const validPanels: AgentModelPanel[] = ['admin', 'customers', 'prospect'];
+const validPanels: AgentModelPanel[] = ['admin', 'customers', 'blueprint', 'prospect'];
 
 export default async function AgentModelPanelPage({
   params,
