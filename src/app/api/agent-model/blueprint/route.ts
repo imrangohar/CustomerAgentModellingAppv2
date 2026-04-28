@@ -47,35 +47,69 @@ function extractBetween(lines: string[], startMarker: string, endMarkers: string
 function parseTableRows(sectionLines: string[]): BlueprintRow[] {
   const rows: BlueprintRow[] = [];
   let currentWorkPack = '';
+  let pendingTextLines: string[] = [];
 
-  // Matches: "<compliance area text>  <number with commas>  <pct>%  <pct>%  <pct>%"
-  const dataRowPattern = /^(.+?)\s{2,}([\d,]+)\s+(\d+)%\s+(\d+)%\s+(\d+)%/;
-  // Also try single-space variant
-  const dataRowPatternSingle = /^(.+?)\s+([\d,]+)\s+(\d+)%\s+(\d+)%\s+(\d+)%$/;
   const workPackPattern = /Agent Work Pack|Custom Agents/i;
-  const skipPattern = /^(Compliance Area|High Risk|Approved|Rejected|Agent Coverage|Total\b|Human Work|The following|AppZen Confidential|For Agent|Standardize|Develop|Expand|Monitor|Collaborate|Immediately)/i;
+
+  // Skip column-header fragments and boilerplate lines that appear between data rows
+  const skipPattern =
+    /^(Compliance Area|High Risk\b|Expense Lines|Approved|manually by|Auditor %|Rejected|Agent$|Coverage %|Total\b|Human Work|The following|AppZen Confidential|For Agent|Standardize|Develop|Expand|Monitor|Collaborate|Immediately)/i;
+
+  // PDF text concatenates each row without spaces:
+  //   "General Receipt Verification98,64156%44%76%"
+  // Multi-line rows split the label across prior lines and put numbers alone:
+  //   "Meal Receipt: Ineligible Items (Tobacco, Gift"
+  //   "Cards & Other Non-Alcohol Items)"
+  //   "11,02882%18%72%"
+  //
+  // The number always uses comma-grouped thousands (e.g. "98,641"), so we
+  // use \d{1,3}(?:,\d{3})+ to match it exactly — avoiding greedy overlap
+  // with the percent digits that follow immediately.
+  const numPattern = /^(.*?)(\d{1,3}(?:,\d{3})+)(\d{1,3})%(\d{1,3})%(\d{1,3})%$/;
 
   for (const line of sectionLines) {
     const trimmed = line.trim();
-    if (!trimmed || skipPattern.test(trimmed)) continue;
 
-    if (workPackPattern.test(trimmed)) {
-      currentWorkPack = trimmed;
+    if (!trimmed || skipPattern.test(trimmed)) {
+      pendingTextLines = [];
       continue;
     }
 
-    const match = trimmed.match(dataRowPattern) ?? trimmed.match(dataRowPatternSingle);
+    if (workPackPattern.test(trimmed)) {
+      currentWorkPack = trimmed;
+      pendingTextLines = [];
+      continue;
+    }
+
+    const match = trimmed.match(numPattern);
     if (match) {
+      const textPrefix = match[1].trim();
       const highRiskLines = parseInt(match[2].replace(/,/g, ''), 10);
-      if (isNaN(highRiskLines) || highRiskLines === 0) continue;
+      if (isNaN(highRiskLines) || highRiskLines === 0) {
+        pendingTextLines = [];
+        continue;
+      }
+
+      // Compliance area = all accumulated text lines + any text on the numbers line
+      const allParts = textPrefix ? [...pendingTextLines, textPrefix] : [...pendingTextLines];
+      const complianceArea = allParts.join(' ').trim();
+      if (!complianceArea) {
+        pendingTextLines = [];
+        continue;
+      }
+
       rows.push({
         workPack: currentWorkPack,
-        complianceArea: match[1].trim(),
+        complianceArea,
         highRiskLines,
         approvedPct: parseInt(match[3], 10),
         rejectedPct: parseInt(match[4], 10),
         agentCoveragePct: parseInt(match[5], 10),
       });
+      pendingTextLines = [];
+    } else {
+      // Text-only line — accumulate as part of a multi-line compliance area name
+      pendingTextLines.push(trimmed);
     }
   }
 
