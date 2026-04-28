@@ -1,6 +1,7 @@
 'use client';
 
 import { type ComponentType } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -21,7 +22,7 @@ import {
 
 function AppZenLogo() {
   return (
-    <img src="/appzen-logo.png" alt="AppZen" style={{ height: '28px', width: 'auto' }} />
+    <Image src="/appzen-logo.png" alt="AppZen" width={0} height={0} sizes="200px" style={{ height: '28px', width: 'auto' }} />
   );
 }
 import { cn } from '@/lib/utils';

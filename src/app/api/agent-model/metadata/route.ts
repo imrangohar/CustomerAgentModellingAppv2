@@ -4,9 +4,7 @@ import { AGENT_MODEL_REQUIRED_COLS, type AgentModelMetadata, type AgentModelRow 
 const KV_KEY = 'agent-model:metadata:v1';
 
 declare global {
-  // eslint-disable-next-line no-var
   var __agentModelMetadataFallback: AgentModelMetadata | undefined;
-  // eslint-disable-next-line no-var
   var __agentModelStaging: AgentModelMetadata | undefined;
 }
 
@@ -118,7 +116,7 @@ export async function POST(req: Request) {
 
     // ── Chunked: init — store first chunk in staging ───────────────────────
     if (body._phase === 'init') {
-      const { _phase: _, ...rest } = body;
+      const { _phase, ...rest } = body; void _phase;
       globalThis.__agentModelStaging = {
         version: 1,
         filename: rest.filename ?? '',

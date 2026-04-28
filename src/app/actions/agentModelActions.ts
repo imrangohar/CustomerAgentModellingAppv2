@@ -5,7 +5,6 @@ import { type AgentModelMetadata, AGENT_MODEL_REQUIRED_COLS } from '@/lib/agentM
 const KV_KEY = 'agent-model:metadata:v1';
 
 declare global {
-  // eslint-disable-next-line no-var
   var __agentModelMetadataFallback: AgentModelMetadata | undefined;
 }
 

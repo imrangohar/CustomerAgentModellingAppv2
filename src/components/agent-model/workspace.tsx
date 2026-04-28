@@ -298,7 +298,6 @@ export function AgentModelWorkspace({ panel }: { panel: AgentModelPanel }) {
   const top5 = useMemo(() => allModels.slice(0, 5), [allModels]);
   const top5TotalHighRisk = useMemo(() => top5.reduce((sum, item) => sum + item.total, 0), [top5]);
   const top5MaxTotal = useMemo(() => Math.max(...top5.map((item) => item.total), 1), [top5]);
-  const top5MaxReturned = useMemo(() => Math.max(...top5.map((item) => item.returned), 1), [top5]);
 
   const roi = useMemo(() => {
     let baseVolume: number;
@@ -551,10 +550,8 @@ export function AgentModelWorkspace({ panel }: { panel: AgentModelPanel }) {
     return groups;
   }, [industryExportHeatmapExpenseTypes]);
 
-  useEffect(() => {
-    void fetchSharedMetadata();
-    void fetchBlueprintData();
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { void fetchSharedMetadata(); void fetchBlueprintData(); }, []);
 
   async function fetchSharedMetadata() {
     setLoading(true);
@@ -1621,6 +1618,7 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
                 <div className="px-8 pt-8 pb-5">
                   <div className="flex items-center justify-between">
                     {/* AppZen logo */}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src="/appzen-logo.png" alt="AppZen" style={{ height: '32px', width: 'auto' }} />
                     <span style={{ color: '#B6B0A2', fontSize: '0.8rem' }}>{new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
                   </div>
@@ -1928,6 +1926,7 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
               {/* Branded footer — Cacao */}
               <div className="rounded-2xl overflow-hidden" style={{ background: '#3D3533' }}>
                 <div className="flex items-center justify-between px-8 py-5">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src="/appzen-logo.png" alt="AppZen" style={{ height: '26px', width: 'auto' }} />
                   <span style={{ color: '#746C60', fontSize: '0.75rem' }}>AI Agent Transformation Report · Confidential</span>
                   <span style={{ color: '#746C60', fontSize: '0.75rem' }}>{new Date().getFullYear()} © AppZen</span>
@@ -2530,6 +2529,7 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
               <div className="rounded-2xl overflow-hidden" style={{ background: '#3D3533' }}>
                 <div className="px-8 pt-8 pb-5">
                   <div className="flex items-center justify-between">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src="/appzen-logo.png" alt="AppZen" style={{ height: '32px', width: 'auto' }} />
                     <span style={{ color: '#B6B0A2', fontSize: '0.8rem' }}>{new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
                   </div>
@@ -2823,6 +2823,7 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
               {/* Branded footer */}
               <div className="rounded-2xl overflow-hidden" style={{ background: '#3D3533' }}>
                 <div className="flex items-center justify-between px-8 py-5">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src="/appzen-logo.png" alt="AppZen" style={{ height: '26px', width: 'auto' }} />
                   <span style={{ color: '#746C60', fontSize: '0.75rem' }}>AI Agent Transformation Report · Confidential</span>
                   <span style={{ color: '#746C60', fontSize: '0.75rem' }}>{new Date().getFullYear()} © AppZen</span>
