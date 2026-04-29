@@ -240,6 +240,7 @@ function sliceCanvasForPages(canvas: HTMLCanvasElement, pagePixelHeight: number)
 export function AgentModelWorkspace({ panel }: { panel: AgentModelPanel }) {
   const reportExportRef = useRef<HTMLDivElement>(null);
   const prospectExportRef = useRef<HTMLDivElement>(null);
+  const blueprintExportRef = useRef<HTMLDivElement>(null);
 
   const [rows, setRows] = useState<AgentModelRow[]>([]);
   const [filename, setFilename] = useState<string>('');
@@ -260,6 +261,7 @@ export function AgentModelWorkspace({ panel }: { panel: AgentModelPanel }) {
   const [selectedSubIndustries, setSelectedSubIndustries] = useState<string[]>([]);
   const [industryOperationalAnswers, setIndustryOperationalAnswers] = useState<Record<string, CustomerOperationalAnswers>>({});
   const [prospectExporting, setProspectExporting] = useState(false);
+  const [blueprintExporting, setBlueprintExporting] = useState(false);
 
   const [roiVolumeMode, setRoiVolumeMode] = useState<'top5' | 'all' | 'single'>('top5');
   const [roiSingleModel, setRoiSingleModel] = useState('');
@@ -934,6 +936,80 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
       setNotice({ kind: 'error', message: 'PDF export failed. Please try again.' });
     } finally {
       setProspectExporting(false);
+    }
+  }
+
+  async function captureBlueprintReportPages() {
+    if (!blueprintExportRef.current) return null;
+    const html2canvas = await loadHtml2Canvas();
+    if (!html2canvas) return null;
+    await waitForImages(blueprintExportRef.current);
+    const canvas = await html2canvas(blueprintExportRef.current, {
+      scale: 2,
+      backgroundColor: '#F7F6F2',
+      useCORS: true,
+      width: blueprintExportRef.current.scrollWidth,
+      height: blueprintExportRef.current.scrollHeight,
+      windowWidth: blueprintExportRef.current.scrollWidth,
+      windowHeight: blueprintExportRef.current.scrollHeight,
+      scrollX: 0,
+      scrollY: 0,
+    });
+    const pdfPageWidthPts  = 595.28 - 40;
+    const pdfPageHeightPts = 841.89 - 40;
+    const pixelsPerPt      = canvas.width / pdfPageWidthPts;
+    const pagePixelHeight  = Math.floor(pdfPageHeightPts * pixelsPerPt);
+    const pageImages = sliceCanvasForPages(canvas, pagePixelHeight);
+    return { pageImages, pdfPageWidthPts, pdfPageHeightPts };
+  }
+
+  async function downloadBlueprintWordReport() {
+    if (!blueprintData) return;
+    setBlueprintExporting(true);
+    try {
+      const report = await captureBlueprintReportPages();
+      if (!report) { setBlueprintNotice({ kind: 'error', message: 'Unable to render report for Word export.' }); return; }
+      const html = `<!doctype html>
+<html><head><meta charset="utf-8" />
+<style>
+  @page { size: A4; margin: 0.5in; }
+  body { font-family: "Segoe UI", Arial, sans-serif; background: #ffffff; }
+  .page { page-break-after: always; margin: 0; padding: 0; }
+  .page:last-child { page-break-after: auto; }
+  img { width: 100%; height: auto; display: block; border: 1px solid #dbe3ef; }
+</style>
+</head><body>
+${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`).join('')}
+</body></html>`;
+      const blob = new Blob([html], { type: 'application/msword' });
+      downloadBlob(`blueprint-${blueprintData.customer.replaceAll(' ', '-').toLowerCase()}.doc`, blob);
+      setBlueprintNotice({ kind: 'success', message: 'Word report downloaded.' });
+    } catch {
+      setBlueprintNotice({ kind: 'error', message: 'Word export failed. Please try again.' });
+    } finally {
+      setBlueprintExporting(false);
+    }
+  }
+
+  async function downloadBlueprintPdfReport() {
+    if (!blueprintData) return;
+    setBlueprintExporting(true);
+    try {
+      const JsPDF = await loadJsPdf();
+      if (!JsPDF) { setBlueprintNotice({ kind: 'error', message: 'PDF library could not be loaded.' }); return; }
+      const report = await captureBlueprintReportPages();
+      if (!report) { setBlueprintNotice({ kind: 'error', message: 'Unable to render report for PDF export.' }); return; }
+      const doc = new JsPDF({ unit: 'pt', format: 'a4' });
+      report.pageImages.forEach((pageImage, index) => {
+        if (index > 0) doc.addPage();
+        doc.addImage(pageImage, 'PNG', 20, 20, report.pdfPageWidthPts, report.pdfPageHeightPts);
+      });
+      doc.save(`blueprint-${blueprintData.customer.replaceAll(' ', '-').toLowerCase()}.pdf`);
+      setBlueprintNotice({ kind: 'success', message: 'PDF report downloaded.' });
+    } catch {
+      setBlueprintNotice({ kind: 'error', message: 'PDF export failed. Please try again.' });
+    } finally {
+      setBlueprintExporting(false);
     }
   }
 
@@ -3275,6 +3351,18 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
                         </span>
                       </div>
                     )}
+
+                    {/* Export buttons */}
+                    <div className="flex flex-wrap gap-2 border-t border-slate-200 pt-3">
+                      <Button variant="secondary" onClick={() => void downloadBlueprintPdfReport()} disabled={blueprintExporting}>
+                        <Download className="h-4 w-4" />
+                        {blueprintExporting ? 'Exporting…' : 'Download PDF'}
+                      </Button>
+                      <Button variant="secondary" onClick={() => void downloadBlueprintWordReport()} disabled={blueprintExporting}>
+                        <Download className="h-4 w-4" />
+                        {blueprintExporting ? 'Exporting…' : 'Download Word'}
+                      </Button>
+                    </div>
                   </CardContent>
                 </Card>
               ) : (
@@ -3294,7 +3382,7 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
                     <CardTitle>AI Agents and Human Auditors</CardTitle>
                     <CardDescription>Distribution of audit work before and after AI Agent deployment</CardDescription>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="pt-6">
                     {(() => {
                       const total = blueprintData.totalExpenseLines || 1;
                       const readyPct  = Math.round(bpReadyTotal  / total * 100);
@@ -3425,6 +3513,252 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
                 </Card>
 
               </div>
+
+              {/* ── Off-screen export container ───────────────────────────── */}
+              <div className="pointer-events-none fixed -left-[100000px] top-0 z-[-1] w-[1200px] p-8" style={{ background: '#F7F6F2', fontFamily: "'Manrope', Arial, sans-serif" }} aria-hidden="true">
+                <div ref={blueprintExportRef} className="space-y-4">
+
+                  {/* Branded header */}
+                  <div className="rounded-2xl overflow-hidden" style={{ background: '#3D3533' }}>
+                    <div className="px-8 pt-8 pb-5">
+                      <div className="flex items-center justify-between">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src="/appzen-logo.png" alt="AppZen" style={{ height: '32px', width: 'auto' }} />
+                        <span style={{ color: '#B6B0A2', fontSize: '0.8rem' }}>{new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                      </div>
+                      <h1 className="mt-5" style={{ color: '#FEFDF9', fontSize: '2.25rem', fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.1 }}>Hybrid Workforce Analysis</h1>
+                      <p className="mt-1" style={{ color: '#FEF76C', fontSize: '1.25rem', fontWeight: 600 }}>{blueprintData.customer}</p>
+                    </div>
+                    <div style={{ height: '1px', background: 'rgba(254,253,249,0.15)' }} />
+                    <div className="flex gap-8 px-8 py-4">
+                      {blueprintData.analysisPeriod && <span style={{ color: '#B6B0A2', fontSize: '0.8rem' }}><span style={{ color: '#FEFDF9', fontWeight: 600 }}>Analysis Period: </span>{blueprintData.analysisPeriod}</span>}
+                      {blueprintData.reportDate && <span style={{ color: '#B6B0A2', fontSize: '0.8rem' }}><span style={{ color: '#FEFDF9', fontWeight: 600 }}>Generated: </span>{blueprintData.reportDate}</span>}
+                    </div>
+                  </div>
+
+                  {/* Summary metrics */}
+                  <Card style={{ background: '#FEFDF9', border: '1px solid #E2DDD2' }}>
+                    <CardHeader style={{ borderBottom: '1px solid #E2DDD2' }}>
+                      <CardTitle style={{ color: '#3D3533' }}>Executive Summary</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-4 gap-3">
+                        {[
+                          { label: 'Total Expense Lines (Annualized)', value: blueprintData.totalExpenseLines.toLocaleString() },
+                          { label: 'Approved by Auditors',            value: `${blueprintData.approvedByAuditors.toLocaleString()} (${blueprintData.totalExpenseLines ? Math.round(blueprintData.approvedByAuditors / blueprintData.totalExpenseLines * 100) : 0}%)` },
+                          { label: 'Rejected by Auditors',            value: `${blueprintData.rejectedByAuditors.toLocaleString()} (${blueprintData.totalExpenseLines ? Math.round(blueprintData.rejectedByAuditors / blueprintData.totalExpenseLines * 100) : 0}%)` },
+                          { label: 'Agent-Automatable Lines',         value: (bpReadyTotal + bpModifyTotal + bpCreateTotal).toLocaleString() },
+                        ].map(({ label, value }) => (
+                          <div key={label} className="rounded-xl px-4 py-3" style={{ background: '#3D3533' }}>
+                            <p style={{ fontSize: '0.65rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#FEF76C' }}>{label}</p>
+                            <p style={{ marginTop: '4px', fontSize: '1.25rem', fontWeight: 700, color: '#FEFDF9' }}>{value}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Three agent tables */}
+                  {([
+                    { title: 'Agents Ready to Deploy',               rows: blueprintData.agentsReadyToDeploy,   total: bpReadyTotal },
+                    { title: 'Agent SOPs That Require Modification',  rows: blueprintData.sopRequireModification, total: bpModifyTotal },
+                    { title: 'Agent SOPs That Require Creation',      rows: blueprintData.sopRequireCreation,    total: bpCreateTotal },
+                  ] as const).map(({ title, rows, total }) => rows.length > 0 && (
+                    <Card key={title} style={{ background: '#FEFDF9', border: '1px solid #E2DDD2' }}>
+                      <CardHeader style={{ borderBottom: '1px solid #E2DDD2' }}>
+                        <CardTitle style={{ color: '#3D3533' }}>{title}</CardTitle>
+                        <CardDescription style={{ color: '#746C60' }}>{total.toLocaleString()} high-risk lines</CardDescription>
+                      </CardHeader>
+                      <CardContent className="p-0">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr style={{ background: '#F0EDE6', borderBottom: '1px solid #E2DDD2' }}>
+                              <th className="px-4 py-2 text-left" style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#746C60' }}>Work Pack / Compliance Area</th>
+                              <th className="px-4 py-2 text-right" style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#746C60' }}>High Risk Lines</th>
+                              <th className="px-4 py-2 text-right" style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#746C60' }}>Approved %</th>
+                              <th className="px-4 py-2 text-right" style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#746C60' }}>Rejected %</th>
+                              <th className="px-4 py-2 text-right" style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#746C60' }}>Agent Coverage %</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(() => {
+                              let lastPack = '';
+                              return rows.map((row, i) => {
+                                const packHeader = row.workPack !== lastPack ? (lastPack = row.workPack, row.workPack) : null;
+                                return (
+                                  <>
+                                    {packHeader && (
+                                      <tr key={`exp-pack-${title}-${i}`} style={{ background: '#F0EDE6' }}>
+                                        <td colSpan={5} className="px-4 py-1.5" style={{ fontSize: '0.72rem', fontWeight: 600, color: '#544D45' }}>{packHeader}</td>
+                                      </tr>
+                                    )}
+                                    <tr key={`exp-row-${title}-${i}`} style={{ borderBottom: '1px solid #F0EDE6' }}>
+                                      <td className="px-4 py-2" style={{ color: '#3D3533' }}>{row.complianceArea}</td>
+                                      <td className="px-4 py-2 text-right" style={{ fontWeight: 600, color: '#3D3533' }}>{row.highRiskLines.toLocaleString()}</td>
+                                      <td className="px-4 py-2 text-right" style={{ color: '#746C60' }}>{row.approvedPct}%</td>
+                                      <td className="px-4 py-2 text-right" style={{ color: '#746C60' }}>{row.rejectedPct}%</td>
+                                      <td className="px-4 py-2 text-right" style={{ fontWeight: 600, color: row.agentCoveragePct >= 80 ? '#16a34a' : row.agentCoveragePct >= 60 ? '#b45309' : '#dc2626' }}>{row.agentCoveragePct}%</td>
+                                    </tr>
+                                  </>
+                                );
+                              });
+                            })()}
+                          </tbody>
+                        </table>
+                      </CardContent>
+                    </Card>
+                  ))}
+
+                  {/* ROI metrics */}
+                  {bpRoi && (
+                    <Card style={{ background: '#FEFDF9', border: '1px solid #E2DDD2' }}>
+                      <CardHeader style={{ borderBottom: '1px solid #E2DDD2' }}>
+                        <CardTitle style={{ color: '#3D3533' }}>ROI Impact</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid grid-cols-5 gap-3">
+                          {[
+                            { label: 'Auditor Time Saved',   value: bpRoi.displayTime,                                                                                         sub: `${bpRoi.timeSavedMins.toLocaleString()} minutes total` },
+                            { label: 'FTE Equivalent',       value: bpRoi.fteEquivalent.toFixed(2),                                                                            sub: '1,920 hrs / FTE / year' },
+                            { label: 'FTE Savings',          value: `$${Math.round(bpRoi.fteSavings).toLocaleString()}`,                                                       sub: `at $${fteCost.toLocaleString()} loaded cost` },
+                            { label: 'Credit Consumption',   value: bpRoi.creditConsumption.toLocaleString(),                                                                  sub: `${creditsPerAction} credits per action` },
+                            { label: 'Cost of Credits',      value: `$${(bpRoi.creditConsumption * costPerCredit).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, sub: `$${costPerCredit.toFixed(2)} per credit` },
+                          ].map(({ label, value, sub }) => (
+                            <div key={label} className="rounded-xl px-4 py-4 text-center" style={{ background: '#3D3533' }}>
+                              <p style={{ fontSize: '0.65rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#FEF76C' }}>{label}</p>
+                              <p style={{ marginTop: '4px', fontSize: '1.25rem', fontWeight: 700, color: '#FEFDF9' }}>{value}</p>
+                              <p style={{ marginTop: '4px', fontSize: '0.7rem', color: '#B6B0A2' }}>{sub}</p>
+                            </div>
+                          ))}
+                        </div>
+                        {(() => {
+                          const roiValue = bpRoi.fteSavings - (bpRoi.creditConsumption * costPerCredit);
+                          const roiPositive = roiValue >= 0;
+                          return (
+                            <div className="mt-3 overflow-hidden rounded-xl" style={{ border: `2px solid ${roiPositive ? '#0BDC4D' : '#F35F45'}` }}>
+                              <div className="px-6 py-4 text-center" style={{ background: roiPositive ? '#0BDC4D' : '#F35F45' }}>
+                                <p style={{ fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.8)' }}>Return on Investment</p>
+                                <p style={{ marginTop: '4px', fontSize: '2rem', fontWeight: 700, color: '#fff' }}>${Math.abs(Math.round(roiValue)).toLocaleString()}</p>
+                                <p style={{ marginTop: '4px', fontSize: '0.875rem', fontWeight: 600, color: 'rgba(255,255,255,0.9)' }}>{roiPositive ? 'Net Gain' : 'Net Cost'}</p>
+                              </div>
+                              <div className="flex items-start gap-3 px-4 py-3 text-sm font-medium" style={roiPositive ? { background: '#C5ECD0', color: '#3D3533' } : { background: '#FCD6CF', color: '#3D3533' }}>
+                                <span>{roiPositive ? '✓' : '✗'}</span>
+                                <span>FTE Savings (${Math.round(bpRoi.fteSavings).toLocaleString()}) − Cost of Credits (${Math.round(bpRoi.creditConsumption * costPerCredit).toLocaleString()}) = <strong>${Math.abs(Math.round(roiValue)).toLocaleString()} {roiPositive ? 'net gain' : 'net cost'}</strong>.</span>
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Chart */}
+                  <Card style={{ background: '#FEFDF9', border: '1px solid #E2DDD2' }}>
+                    <CardHeader style={{ borderBottom: '1px solid #E2DDD2' }}>
+                      <CardTitle style={{ color: '#3D3533' }}>AI Agents and Human Auditors</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {(() => {
+                        const total = blueprintData.totalExpenseLines || 1;
+                        const readyPct  = Math.round(bpReadyTotal  / total * 100);
+                        const modifyPct = Math.round(bpModifyTotal / total * 100);
+                        const createPct = Math.round(bpCreateTotal / total * 100);
+                        const humanPct  = Math.max(0, 100 - readyPct - modifyPct - createPct);
+                        const BAR_H = 220;
+                        const aiSegs = [
+                          { key: 'human',  pct: humanPct,  color: '#F87171' },
+                          { key: 'create', pct: createPct, color: '#FB923C' },
+                          { key: 'modify', pct: modifyPct, color: '#FBBF24' },
+                          { key: 'ready',  pct: readyPct,  color: '#4ADE80' },
+                        ];
+                        return (
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'stretch' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: BAR_H, paddingRight: '4px' }}>
+                              {[100,75,50,25,0].map(v => <span key={v} style={{ fontSize: '10px', color: '#94A3B8' }}>{v}</span>)}
+                            </div>
+                            <div style={{ position: 'relative', flex: 1, height: BAR_H }}>
+                              {[0,25,50,75,100].map(v => (
+                                <div key={v} style={{ position: 'absolute', left: 0, right: 0, bottom: `${v}%`, borderTop: '1px dashed #E2E8F0' }} />
+                              ))}
+                              <div style={{ position: 'absolute', inset: 0, display: 'flex', justifyContent: 'space-around', alignItems: 'flex-end', padding: '0 48px' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                                  <div style={{ width: '96px', height: BAR_H, display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: '4px 4px 0 0' }}>
+                                    <div style={{ flex: 1, background: '#F87171', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                      <span style={{ color: '#fff', fontWeight: 700, fontSize: '1rem' }}>100%</span>
+                                    </div>
+                                  </div>
+                                  <span style={{ fontSize: '11px', fontWeight: 600, color: '#475569' }}>Current State</span>
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                                  <div style={{ width: '96px', height: BAR_H, display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: '4px 4px 0 0' }}>
+                                    {aiSegs.map(({ key, pct, color }) => pct > 0 ? (
+                                      <div key={key} style={{ height: `${pct}%`, background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                        {pct >= 5 && <span style={{ color: '#fff', fontWeight: 700, fontSize: '12px' }}>{pct}%</span>}
+                                      </div>
+                                    ) : null)}
+                                  </div>
+                                  <span style={{ fontSize: '11px', fontWeight: 600, color: '#475569' }}>With AI Agents</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 16px', marginTop: '16px' }}>
+                        {[
+                          { label: 'Agents Ready to Deploy',           color: '#4ADE80' },
+                          { label: 'Agent SOPs Require Creation',       color: '#FB923C' },
+                          { label: 'Agent SOPs Require Modification',   color: '#FBBF24' },
+                          { label: 'Human Auditors',                    color: '#F87171' },
+                        ].map(({ label, color }) => (
+                          <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <div style={{ width: '12px', height: '12px', borderRadius: '3px', background: color, flexShrink: 0 }} />
+                            <span style={{ fontSize: '11px', color: '#475569' }}>{label}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Recommendations */}
+                  {(blueprintData.recommendations ?? []).length > 0 && (
+                    <Card style={{ background: '#FEFDF9', border: '1px solid #E2DDD2' }}>
+                      <CardHeader style={{ borderBottom: '1px solid #E2DDD2' }}>
+                        <CardTitle style={{ color: '#3D3533' }}>Recommendations</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-4">
+                          {(blueprintData.recommendations ?? []).map((section, si) => (
+                            <div key={si}>
+                              <h4 style={{ fontSize: '0.875rem', fontWeight: 600, color: '#3D3533', marginBottom: '6px' }}>{section.title}</h4>
+                              <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                                {section.bullets.map((bullet, bi) => (
+                                  <li key={bi} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '4px', fontSize: '0.875rem', color: '#544D45' }}>
+                                    <span style={{ marginTop: '6px', width: '6px', height: '6px', borderRadius: '50%', background: '#94A3B8', flexShrink: 0 }} />
+                                    {bullet}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Branded footer */}
+                  <div className="rounded-2xl overflow-hidden" style={{ background: '#3D3533' }}>
+                    <div className="flex items-center justify-between px-8 py-5">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src="/appzen-logo.png" alt="AppZen" style={{ height: '26px', width: 'auto' }} />
+                      <span style={{ color: '#746C60', fontSize: '0.75rem' }}>Hybrid Workforce Analysis Report · Confidential</span>
+                      <span style={{ color: '#746C60', fontSize: '0.75rem' }}>{new Date().getFullYear()} © AppZen</span>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+
             </>
           )}
         </>
