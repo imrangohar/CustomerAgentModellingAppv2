@@ -31,6 +31,11 @@ export interface BlueprintRow {
   agentCoveragePct: number;
 }
 
+export interface RecommendationSection {
+  title: string;
+  bullets: string[];
+}
+
 export interface BlueprintData {
   customer: string;
   analysisPeriod: string;
@@ -41,6 +46,7 @@ export interface BlueprintData {
   agentsReadyToDeploy: BlueprintRow[];
   sopRequireModification: BlueprintRow[];
   sopRequireCreation: BlueprintRow[];
+  recommendations?: RecommendationSection[];
   filename: string;
   savedAt: number;
 }
@@ -3278,6 +3284,147 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
                   </CardContent>
                 </Card>
               )}
+
+              {/* ── Chart + Recommendations ──────────────────────────────── */}
+              <div className="grid gap-4 lg:grid-cols-2">
+
+                {/* AI Agents vs Human Auditors stacked-bar chart */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>AI Agents and Human Auditors</CardTitle>
+                    <CardDescription>Distribution of audit work before and after AI Agent deployment</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {(() => {
+                      const total = blueprintData.totalExpenseLines || 1;
+                      const readyPct  = Math.round(bpReadyTotal  / total * 100);
+                      const modifyPct = Math.round(bpModifyTotal / total * 100);
+                      const createPct = Math.round(bpCreateTotal / total * 100);
+                      const humanPct  = Math.max(0, 100 - readyPct - modifyPct - createPct);
+                      const BAR_H = 240;
+
+                      // Top → bottom order so the bar reads: human (top), create, modify, ready (bottom)
+                      const aiSegments = [
+                        { key: 'human',  pct: humanPct,  color: '#F87171', label: 'Human Auditors' },
+                        { key: 'create', pct: createPct, color: '#FB923C', label: 'Agent SOPs Require Creation' },
+                        { key: 'modify', pct: modifyPct, color: '#FBBF24', label: 'Agent SOPs Require Modification' },
+                        { key: 'ready',  pct: readyPct,  color: '#4ADE80', label: 'Agents Ready to Deploy' },
+                      ];
+
+                      return (
+                        <div className="space-y-4">
+                          {/* Y-axis + bars */}
+                          <div className="flex items-stretch gap-1">
+                            {/* Rotated Y-axis label */}
+                            <div className="flex items-center justify-center" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', minWidth: '14px' }}>
+                              <span className="text-[10px] text-slate-500 whitespace-nowrap">Percent of Work</span>
+                            </div>
+                            {/* Y-axis tick numbers */}
+                            <div className="flex flex-col justify-between pb-0 pr-1" style={{ height: BAR_H }}>
+                              {[100, 75, 50, 25, 0].map(v => (
+                                <span key={v} className="text-[10px] text-slate-400 leading-none">{v}</span>
+                              ))}
+                            </div>
+                            {/* Chart area */}
+                            <div className="relative flex-1" style={{ height: BAR_H }}>
+                              {/* Dashed gridlines */}
+                              {[0, 25, 50, 75, 100].map(v => (
+                                <div
+                                  key={v}
+                                  className="absolute left-0 right-0 border-t border-dashed border-slate-200"
+                                  style={{ bottom: `${v}%` }}
+                                />
+                              ))}
+                              {/* Bars */}
+                              <div className="absolute inset-0 flex justify-around items-end px-4">
+                                {/* Current State — 100 % human */}
+                                <div className="flex flex-col items-center gap-1">
+                                  <div
+                                    className="w-24 flex flex-col overflow-hidden rounded-t-sm"
+                                    style={{ height: BAR_H }}
+                                  >
+                                    <div className="flex flex-1 items-center justify-center" style={{ background: '#F87171' }}>
+                                      <span className="text-base font-bold text-white">100%</span>
+                                    </div>
+                                  </div>
+                                  <span className="text-[11px] font-medium text-slate-600 whitespace-nowrap">Current State</span>
+                                </div>
+                                {/* With AI Agents — stacked */}
+                                <div className="flex flex-col items-center gap-1">
+                                  <div
+                                    className="w-24 flex flex-col overflow-hidden rounded-t-sm"
+                                    style={{ height: BAR_H }}
+                                  >
+                                    {aiSegments.map(({ key, pct, color }) =>
+                                      pct > 0 ? (
+                                        <div
+                                          key={key}
+                                          className="flex items-center justify-center flex-shrink-0"
+                                          style={{ height: `${pct}%`, background: color }}
+                                        >
+                                          {pct >= 5 && (
+                                            <span className="text-xs font-bold text-white drop-shadow-sm">{pct}%</span>
+                                          )}
+                                        </div>
+                                      ) : null
+                                    )}
+                                  </div>
+                                  <span className="text-[11px] font-medium text-slate-600 whitespace-nowrap">With AI Agents</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Legend — 2-column grid */}
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 pt-1">
+                            {[
+                              { label: 'Agents Ready to Deploy',             color: '#4ADE80' },
+                              { label: 'Agent SOPs Require Creation',         color: '#FB923C' },
+                              { label: 'Agent SOPs Require Modification',     color: '#FBBF24' },
+                              { label: 'Human Auditors',                      color: '#F87171' },
+                            ].map(({ label, color }) => (
+                              <div key={label} className="flex items-center gap-1.5">
+                                <div className="h-3 w-3 flex-shrink-0 rounded-sm" style={{ background: color }} />
+                                <span className="text-xs text-slate-600">{label}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </CardContent>
+                </Card>
+
+                {/* Recommendations */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Recommendations</CardTitle>
+                    <CardDescription>AppZen recommendations based on the blueprint analysis</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {(blueprintData.recommendations ?? []).length > 0 ? (
+                      <div className="space-y-5">
+                        {(blueprintData.recommendations ?? []).map((section, si) => (
+                          <div key={si}>
+                            <h4 className="mb-2 text-sm font-semibold text-slate-800">{section.title}</h4>
+                            <ul className="space-y-1.5">
+                              {section.bullets.map((bullet, bi) => (
+                                <li key={bi} className="flex items-start gap-2 text-sm text-slate-700">
+                                  <span className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-slate-400" />
+                                  {bullet}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-slate-500">No recommendations found in this PDF.</p>
+                    )}
+                  </CardContent>
+                </Card>
+
+              </div>
             </>
           )}
         </>

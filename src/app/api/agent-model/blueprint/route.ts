@@ -15,6 +15,11 @@ export interface BlueprintRow {
   agentCoveragePct: number;
 }
 
+export interface RecommendationSection {
+  title: string;
+  bullets: string[];
+}
+
 export interface BlueprintData {
   customer: string;
   analysisPeriod: string;
@@ -25,6 +30,7 @@ export interface BlueprintData {
   agentsReadyToDeploy: BlueprintRow[];
   sopRequireModification: BlueprintRow[];
   sopRequireCreation: BlueprintRow[];
+  recommendations: RecommendationSection[];
   filename: string;
   savedAt: number;
 }
@@ -116,6 +122,30 @@ function parseTableRows(sectionLines: string[]): BlueprintRow[] {
   return rows;
 }
 
+function parseRecommendations(trimmedLines: string[]): RecommendationSection[] {
+  const startIdx = trimmedLines.findIndex(l => l === 'Recommendations');
+  if (startIdx === -1) return [];
+
+  const sections: RecommendationSection[] = [];
+  let current: RecommendationSection | null = null;
+
+  for (let i = startIdx + 1; i < trimmedLines.length; i++) {
+    const line = trimmedLines[i];
+    if (!line || line === 'AppZen Confidential') continue;
+    // Stop if we hit a post-recommendations major section
+    if (/^(Next Steps|Appendix|About AppZen)/i.test(line)) break;
+    // Section header: ends with ":" and is not a bullet
+    if (line.endsWith(':') && !line.startsWith('•')) {
+      if (current) sections.push(current);
+      current = { title: line.replace(/:$/, '').trim(), bullets: [] };
+    } else if (line.startsWith('•') && current) {
+      current.bullets.push(line.replace(/^•\s*/, '').trim());
+    }
+  }
+  if (current) sections.push(current);
+  return sections;
+}
+
 function parsePdfContent(text: string, filename: string): BlueprintData {
   const lines = text.split('\n');
 
@@ -171,6 +201,7 @@ function parsePdfContent(text: string, filename: string): BlueprintData {
     agentsReadyToDeploy: parseTableRows(s1Lines),
     sopRequireModification: parseTableRows(s2Lines),
     sopRequireCreation: parseTableRows(s3Lines),
+    recommendations: parseRecommendations(trimmedLines),
     filename,
     savedAt: Date.now(),
   };
