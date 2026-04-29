@@ -3746,14 +3746,10 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
                     </Card>
                   )}
 
-                  {/* Branded footer */}
-                  <div className="rounded-2xl overflow-hidden" style={{ background: '#3D3533' }}>
-                    <div className="flex items-center justify-between px-8 py-5">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src="/appzen-logo.png" alt="AppZen" style={{ height: '26px', width: 'auto' }} />
-                      <span style={{ color: '#746C60', fontSize: '0.75rem' }}>Hybrid Workforce Analysis Report · Confidential</span>
-                      <span style={{ color: '#746C60', fontSize: '0.75rem' }}>{new Date().getFullYear()} © AppZen</span>
-                    </div>
+                  {/* Footer — text only */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #E2DDD2', padding: '12px 8px' }}>
+                    <span style={{ fontSize: '0.75rem', color: '#94A3B8' }}>Hybrid Workforce Analysis Report · Confidential</span>
+                    <span style={{ fontSize: '0.75rem', color: '#94A3B8' }}>{new Date().getFullYear()} © AppZen</span>
                   </div>
 
                 </div>
