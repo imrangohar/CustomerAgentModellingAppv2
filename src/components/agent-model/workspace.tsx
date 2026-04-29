@@ -275,7 +275,8 @@ export function AgentModelWorkspace({ panel }: { panel: AgentModelPanel }) {
   const [costPerCredit, setCostPerCredit] = useState(0.30);
 
   // Blueprint panel state
-  const [blueprintData, setBlueprintData] = useState<BlueprintData | null>(null);
+  const [blueprintList, setBlueprintList] = useState<BlueprintData[]>([]);
+  const [selectedBlueprintFilename, setSelectedBlueprintFilename] = useState<string>('');
   const [blueprintLoading, setBlueprintLoading] = useState(false);
   const [blueprintNotice, setBlueprintNotice] = useState<{ kind: 'success' | 'warning' | 'error' | 'info'; message: string } | null>(null);
   const [bpTableSelection, setBpTableSelection] = useState({ ready: true, modify: false, create: false });
@@ -284,6 +285,12 @@ export function AgentModelWorkspace({ panel }: { panel: AgentModelPanel }) {
     reimbursementCycleTime: '',
     reimbursementCycleTimeCustom: '',
   });
+
+  // Derived: currently-selected blueprint entry
+  const blueprintData: BlueprintData | null =
+    blueprintList.find((b) => b.filename === selectedBlueprintFilename) ??
+    blueprintList[0] ??
+    null;
 
   const customers = useMemo(() => uniqueCustomerNames(rows), [rows]);
   const filteredCustomers = useMemo(() => {
@@ -722,43 +729,88 @@ export function AgentModelWorkspace({ panel }: { panel: AgentModelPanel }) {
   async function fetchBlueprintData() {
     try {
       const res = await fetch('/api/agent-model/blueprint', { cache: 'no-store' });
-      const payload = (await res.json()) as { ok: boolean; data?: BlueprintData | null };
-      if (payload.ok && payload.data) {
-        setBlueprintData(payload.data);
+      const payload = (await res.json()) as { ok: boolean; data?: BlueprintData[] };
+      if (payload.ok && Array.isArray(payload.data)) {
+        setBlueprintList(payload.data);
+        if (payload.data.length > 0) {
+          setSelectedBlueprintFilename((prev) =>
+            payload.data!.some((b) => b.filename === prev) ? prev : payload.data![0].filename
+          );
+        }
       }
     } catch {
       // silent — blueprint data is optional
     }
   }
 
-  async function handlePdfUpload(file: File) {
+  async function handlePdfUpload(files: FileList | File[]) {
+    const fileArray = Array.from(files);
+    if (!fileArray.length) return;
     setBlueprintLoading(true);
-    setBlueprintNotice({ kind: 'info', message: `Parsing ${file.name}…` });
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const res = await fetch('/api/agent-model/blueprint', { method: 'POST', body: formData });
-      const payload = (await res.json()) as { ok: boolean; data?: BlueprintData; error?: string };
-      if (!payload.ok || !payload.data) {
-        setBlueprintNotice({ kind: 'error', message: payload.error || 'Failed to parse PDF.' });
-        return;
+    let latestList: BlueprintData[] = blueprintList;
+    let successCount = 0;
+    const errors: string[] = [];
+
+    for (let i = 0; i < fileArray.length; i++) {
+      const file = fileArray[i];
+      setBlueprintNotice({ kind: 'info', message: `Uploading ${i + 1}/${fileArray.length}: ${file.name}…` });
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        const res = await fetch('/api/agent-model/blueprint', { method: 'POST', body: formData });
+        const payload = (await res.json()) as { ok: boolean; data?: BlueprintData[]; error?: string };
+        if (!payload.ok || !Array.isArray(payload.data)) {
+          errors.push(`${file.name}: ${payload.error ?? 'Failed to parse PDF.'}`);
+        } else {
+          latestList = payload.data;
+          successCount++;
+        }
+      } catch (err) {
+        const detail = err instanceof Error ? err.message : String(err);
+        errors.push(`${file.name}: ${detail}`);
       }
-      setBlueprintData(payload.data);
-      setBlueprintNotice({ kind: 'success', message: `Blueprint loaded: ${payload.data.customer} · ${file.name}` });
-    } catch (err) {
-      const detail = err instanceof Error ? err.message : String(err);
-      setBlueprintNotice({ kind: 'error', message: `Upload error: ${detail}` });
-    } finally {
-      setBlueprintLoading(false);
     }
+
+    setBlueprintList(latestList);
+    if (latestList.length > 0) {
+      setSelectedBlueprintFilename((prev) =>
+        latestList.some((b) => b.filename === prev) ? prev : latestList[latestList.length - 1].filename
+      );
+    }
+
+    if (errors.length === 0) {
+      setBlueprintNotice({ kind: 'success', message: `${successCount} PDF${successCount !== 1 ? 's' : ''} uploaded successfully.` });
+    } else if (successCount > 0) {
+      setBlueprintNotice({ kind: 'warning', message: `${successCount} uploaded, ${errors.length} failed: ${errors.join('; ')}` });
+    } else {
+      setBlueprintNotice({ kind: 'error', message: errors.join('; ') });
+    }
+
+    setBlueprintLoading(false);
   }
 
-  async function clearBlueprintData() {
+  async function clearBlueprintData(filename?: string) {
     setBlueprintLoading(true);
     try {
-      await fetch('/api/agent-model/blueprint', { method: 'DELETE' });
-      setBlueprintData(null);
-      setBlueprintNotice({ kind: 'info', message: 'Blueprint data cleared.' });
+      const url = filename
+        ? `/api/agent-model/blueprint?filename=${encodeURIComponent(filename)}`
+        : '/api/agent-model/blueprint';
+      const res = await fetch(url, { method: 'DELETE' });
+      const payload = (await res.json()) as { ok: boolean; data?: BlueprintData[] };
+      if (payload.ok) {
+        const updated = Array.isArray(payload.data) ? payload.data : [];
+        setBlueprintList(updated);
+        if (filename) {
+          // If we removed the currently-selected one, switch to first remaining
+          setSelectedBlueprintFilename((prev) =>
+            prev === filename ? (updated[0]?.filename ?? '') : prev
+          );
+          setBlueprintNotice({ kind: 'info', message: `Removed: ${filename}` });
+        } else {
+          setSelectedBlueprintFilename('');
+          setBlueprintNotice({ kind: 'info', message: 'All blueprints cleared.' });
+        }
+      }
     } catch {
       setBlueprintNotice({ kind: 'error', message: 'Unable to clear blueprint data.' });
     } finally {
@@ -1094,8 +1146,8 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
         {/* PDF Blueprint Upload */}
         <Card>
           <CardHeader>
-            <CardTitle>Hybrid Workforce Analysis PDF</CardTitle>
-            <CardDescription>Upload an AppZen Hybrid Workforce Analysis PDF to populate the Customers (Blueprint) section.</CardDescription>
+            <CardTitle>Hybrid Workforce Analysis PDFs</CardTitle>
+            <CardDescription>Upload one or more AppZen Hybrid Workforce Analysis PDFs to populate the Customers (Blueprint) section.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <label
@@ -1106,15 +1158,16 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
             >
               <Upload className="h-6 w-6 text-slate-500" />
               <p className="text-sm font-medium text-slate-900">Click to upload or drag and drop</p>
-              <p className="text-xs text-slate-600">Accepts .pdf (Hybrid Workforce Analysis Report format)</p>
+              <p className="text-xs text-slate-600">Accepts multiple .pdf files (Hybrid Workforce Analysis Report format)</p>
               <input
                 type="file"
                 accept=".pdf"
+                multiple
                 className="hidden"
                 onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (file) {
-                    void handlePdfUpload(file);
+                  const files = event.target.files;
+                  if (files && files.length > 0) {
+                    void handlePdfUpload(files);
                     event.currentTarget.value = '';
                   }
                 }}
@@ -1131,16 +1184,46 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
               <Button variant="secondary" onClick={() => void fetchBlueprintData()} disabled={blueprintLoading}>
                 Refresh
               </Button>
-              <Button variant="secondary" onClick={() => void clearBlueprintData()} disabled={blueprintLoading || !blueprintData}>
-                Clear blueprint
+              <Button variant="secondary" onClick={() => void clearBlueprintData()} disabled={blueprintLoading || blueprintList.length === 0}>
+                Clear all
               </Button>
             </div>
 
-            <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-              {blueprintData
-                ? `${blueprintData.filename} · Customer: ${blueprintData.customer} · ${blueprintData.analysisPeriod}`
-                : 'No blueprint PDF loaded yet.'}
-            </div>
+            {blueprintList.length > 0 ? (
+              <div className="space-y-2">
+                {blueprintList.map((bp) => (
+                  <div
+                    key={bp.filename}
+                    className={cn(
+                      'flex items-center justify-between rounded-xl border px-4 py-2.5 text-sm transition',
+                      selectedBlueprintFilename === bp.filename || (selectedBlueprintFilename === '' && blueprintList[0] === bp)
+                        ? 'border-blue-300 bg-blue-50 text-blue-900'
+                        : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'
+                    )}
+                  >
+                    <button
+                      className="flex-1 text-left"
+                      onClick={() => setSelectedBlueprintFilename(bp.filename)}
+                    >
+                      <span className="font-medium">{bp.customer}</span>
+                      <span className="ml-2 text-xs text-slate-500">{bp.filename} · {bp.analysisPeriod}</span>
+                    </button>
+                    <button
+                      className="ml-3 rounded p-1 text-slate-400 hover:bg-slate-200 hover:text-rose-600"
+                      onClick={() => void clearBlueprintData(bp.filename)}
+                      disabled={blueprintLoading}
+                      title="Remove"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+                No blueprint PDFs loaded yet.
+              </div>
+            )}
           </CardContent>
         </Card>
         </>
@@ -2919,6 +3002,40 @@ ${report.pageImages.map((img) => `<div class="page"><img src="${img}" /></div>`)
       {/* ── Blueprint Panel ─────────────────────────────────────────────────── */}
       {panel === 'blueprint' && (
         <>
+          {/* Blueprint selector — shown when multiple PDFs are loaded */}
+          {blueprintList.length > 1 && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle>Select Customer Blueprint</CardTitle>
+                <CardDescription>{blueprintList.length} blueprints loaded. Select one to view its analysis.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-2">
+                  {blueprintList.map((bp) => {
+                    const isActive =
+                      selectedBlueprintFilename === bp.filename ||
+                      (selectedBlueprintFilename === '' && blueprintList[0] === bp);
+                    return (
+                      <button
+                        key={bp.filename}
+                        onClick={() => setSelectedBlueprintFilename(bp.filename)}
+                        className={cn(
+                          'rounded-lg border px-3 py-2 text-left text-sm transition',
+                          isActive
+                            ? 'border-blue-400 bg-blue-50 font-semibold text-blue-900'
+                            : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                        )}
+                      >
+                        <div className="font-medium">{bp.customer}</div>
+                        <div className="text-xs text-slate-500">{bp.analysisPeriod}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {!blueprintData ? (
             <Card>
               <CardHeader>

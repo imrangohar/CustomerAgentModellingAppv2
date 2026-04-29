@@ -35,7 +35,7 @@ export interface BlueprintData {
   savedAt: number;
 }
 
-declare const globalThis: { __blueprintData?: BlueprintData | null };
+declare const globalThis: { __blueprintDataList?: BlueprintData[] };
 
 // ── PDF text parser ──────────────────────────────────────────────────────────
 
@@ -210,8 +210,8 @@ function parsePdfContent(text: string, filename: string): BlueprintData {
 // ── Route handlers ────────────────────────────────────────────────────────────
 
 export async function GET() {
-  const data = globalThis.__blueprintData ?? null;
-  return Response.json({ ok: true, data });
+  const list = globalThis.__blueprintDataList ?? [];
+  return Response.json({ ok: true, data: list });
 }
 
 export async function POST(request: NextRequest) {
@@ -230,9 +230,17 @@ export async function POST(request: NextRequest) {
     const parsed = await pdfParse(buffer);
     const blueprintData = parsePdfContent(parsed.text, file.name);
 
-    globalThis.__blueprintData = blueprintData;
+    // Upsert into list by filename
+    const list = globalThis.__blueprintDataList ?? [];
+    const idx = list.findIndex((b) => b.filename === blueprintData.filename);
+    if (idx >= 0) {
+      list[idx] = blueprintData;
+    } else {
+      list.push(blueprintData);
+    }
+    globalThis.__blueprintDataList = list;
 
-    return Response.json({ ok: true, data: blueprintData });
+    return Response.json({ ok: true, data: list });
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
     console.error('[blueprint POST] error:', detail);
@@ -240,7 +248,18 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function DELETE() {
-  globalThis.__blueprintData = null;
-  return Response.json({ ok: true });
+export async function DELETE(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const filename = searchParams.get('filename');
+
+  if (filename) {
+    // Remove a specific entry by filename
+    const list = globalThis.__blueprintDataList ?? [];
+    globalThis.__blueprintDataList = list.filter((b) => b.filename !== filename);
+  } else {
+    // Clear all
+    globalThis.__blueprintDataList = [];
+  }
+
+  return Response.json({ ok: true, data: globalThis.__blueprintDataList });
 }
